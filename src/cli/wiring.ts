@@ -1,9 +1,9 @@
-import { CamoufoxBrowser } from '../adapters/browser/CamoufoxBrowser.js';
-import { ChromeCookieSource } from '../adapters/cookies/ChromeCookieSource.js';
-import type { CookieSource } from '../adapters/cookies/CookieSource.js';
-import { BrowserDownloader } from '../adapters/download/BrowserDownloader.js';
-import { NexusWebAdapter } from '../adapters/nexus/NexusWebAdapter.js';
-import { FileSessionStore } from '../adapters/session/FileSessionStore.js';
+import { CamoufoxBrowser } from '@adapters/browser/CamoufoxBrowser.js';
+import { ChromeCookieSource } from '@adapters/cookies/ChromeCookieSource.js';
+import type { CookieSource } from '@adapters/cookies/CookieSource.js';
+import { BrowserDownloader } from '@adapters/download/BrowserDownloader.js';
+import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
+import { FileSessionStore } from '@adapters/session/FileSessionStore.js';
 
 /**
  * Composition root: the only place concrete adapters are constructed. Commands

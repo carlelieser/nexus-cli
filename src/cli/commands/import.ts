@@ -1,6 +1,6 @@
 import type { ArgumentsCamelCase, Argv, CommandModule } from 'yargs';
 
-import { importSession } from '../../app/importSession.js';
+import { importSession } from '@app/importSession.js';
 import { out } from '../output.js';
 import { buildDeps, cookieSourceFor, NEXUS_COOKIE_DOMAIN } from '../wiring.js';
 

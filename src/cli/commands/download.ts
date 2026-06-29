@@ -1,13 +1,13 @@
 import ora, { type Ora } from 'ora';
 import type { ArgumentsCamelCase, Argv, CommandModule } from 'yargs';
 
-import { downloadCollection } from '../../app/downloadCollection.js';
-import { downloadMod } from '../../app/downloadMod.js';
-import { restoreSession } from '../../app/restoreSession.js';
-import { defaultOutDir } from '../../config/paths.js';
+import { downloadCollection } from '@app/downloadCollection.js';
+import { downloadMod } from '@app/downloadMod.js';
+import { restoreSession } from '@app/restoreSession.js';
+import { defaultOutDir } from '@config/paths.js';
 import { basename } from 'node:path';
-import { AuthError } from '../../core/errors.js';
-import { type DownloadReport, type ModResult, summarize } from '../../core/types.js';
+import { AuthError } from '@core/errors.js';
+import { type DownloadReport, type ModResult, summarize } from '@core/types.js';
 import { out } from '../output.js';
 import { buildDeps } from '../wiring.js';
 

@@ -1,6 +1,6 @@
-import type { BrowserSession } from '../adapters/browser/Browser.js';
-import type { Downloader, DownloadProgress } from '../adapters/download/Downloader.js';
-import type { NexusSite } from '../adapters/nexus/NexusSite.js';
+import type { BrowserSession } from '@adapters/browser/Browser.js';
+import type { Downloader, DownloadProgress } from '@adapters/download/Downloader.js';
+import type { NexusSite } from '@adapters/nexus/NexusSite.js';
 import {
   type CollectionMember,
   type DownloadReport,
@@ -8,7 +8,7 @@ import {
   type GameDomain,
   type ModResult,
   summarize,
-} from '../core/types.js';
+} from '@core/types.js';
 import { BackoffPolicy, DEFAULT_BACKOFF } from './backoff.js';
 import { isThrottle, withRetry } from './retry.js';
 

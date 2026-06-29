@@ -1,4 +1,4 @@
-import type { Cookie } from '../../core/types.js';
+import type { Cookie } from '@core/types.js';
 
 /** Reads cookies for a domain out of an installed browser's cookie store. */
 export interface CookieSource {

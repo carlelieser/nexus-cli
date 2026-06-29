@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { CamoufoxBrowser } from '../../src/adapters/browser/CamoufoxBrowser.js';
-import { NexusWebAdapter } from '../../src/adapters/nexus/NexusWebAdapter.js';
-import { FileSessionStore } from '../../src/adapters/session/FileSessionStore.js';
-import { restoreSession } from '../../src/app/restoreSession.js';
+import { CamoufoxBrowser } from '@adapters/browser/CamoufoxBrowser.js';
+import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
+import { FileSessionStore } from '@adapters/session/FileSessionStore.js';
+import { restoreSession } from '@app/restoreSession.js';
 
 /**
  * Opt-in live smoke test. Hits Nexus for real to catch site drift the fixtures

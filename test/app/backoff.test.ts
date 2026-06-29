@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BackoffPolicy } from '../../src/app/backoff.js';
+import { BackoffPolicy } from '@app/backoff.js';
 
 const cfg = {
   maxConcurrency: 3,

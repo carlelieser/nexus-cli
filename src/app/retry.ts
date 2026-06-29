@@ -1,4 +1,4 @@
-import { ThrottleError } from '../core/errors.js';
+import { ThrottleError } from '@core/errors.js';
 
 export interface RetryOptions {
   attempts: number;

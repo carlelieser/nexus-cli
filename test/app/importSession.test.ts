@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { importSession } from '../../src/app/importSession.js';
-import { AuthError } from '../../src/core/errors.js';
-import type { Cookie } from '../../src/core/types.js';
+import { importSession } from '@app/importSession.js';
+import { AuthError } from '@core/errors.js';
+import type { Cookie } from '@core/types.js';
 import { FakeBrowser, FakeCookieSource, FakeSession, FakeStore } from '../fakes.js';
 
 const cookies: Cookie[] = [

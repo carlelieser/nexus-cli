@@ -1,8 +1,8 @@
-import type { Browser } from '../adapters/browser/Browser.js';
-import type { CookieSource } from '../adapters/cookies/CookieSource.js';
-import type { SessionStore } from '../adapters/session/SessionStore.js';
-import { AuthError } from '../core/errors.js';
-import type { Session } from '../core/types.js';
+import type { Browser } from '@adapters/browser/Browser.js';
+import type { CookieSource } from '@adapters/cookies/CookieSource.js';
+import type { SessionStore } from '@adapters/session/SessionStore.js';
+import { AuthError } from '@core/errors.js';
+import type { Session } from '@core/types.js';
 
 export interface ImportDeps {
   source: CookieSource;

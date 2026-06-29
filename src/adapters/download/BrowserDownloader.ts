@@ -4,8 +4,8 @@ import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
-import { DownloadError, NetworkError } from '../../core/errors.js';
-import type { DownloadTarget } from '../../core/types.js';
+import { DownloadError, NetworkError } from '@core/errors.js';
+import type { DownloadTarget } from '@core/types.js';
 import type { BrowserSession } from '../browser/Browser.js';
 import type { Downloader, DownloadProgress } from './Downloader.js';
 

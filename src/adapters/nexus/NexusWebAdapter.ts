@@ -1,10 +1,5 @@
-import { ScrapeError } from '../../core/errors.js';
-import type {
-  CollectionMember,
-  DownloadTarget,
-  FileCategory,
-  GameDomain,
-} from '../../core/types.js';
+import { ScrapeError } from '@core/errors.js';
+import type { CollectionMember, DownloadTarget, FileCategory, GameDomain } from '@core/types.js';
 import type { JsonRequest, NexusSite } from './NexusSite.js';
 
 const BASE = 'https://www.nexusmods.com';

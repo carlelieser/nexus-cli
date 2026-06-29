@@ -1,4 +1,4 @@
-import type { Session } from '../../core/types.js';
+import type { Session } from '@core/types.js';
 
 /** Persistence boundary for the authenticated session. */
 export interface SessionStore {

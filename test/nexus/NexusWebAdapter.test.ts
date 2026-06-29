@@ -3,8 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { ScrapeError } from '../../src/core/errors.js';
-import { NexusWebAdapter } from '../../src/adapters/nexus/NexusWebAdapter.js';
+import { ScrapeError } from '@core/errors.js';
+import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 
 const fixture = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), 'utf8');

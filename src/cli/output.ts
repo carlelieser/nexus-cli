@@ -1,4 +1,4 @@
-import { isNexusError } from '../core/errors.js';
+import { isNexusError } from '@core/errors.js';
 
 /** Minimal user-facing output. Errors render as one line unless verbose. */
 export const out = {

@@ -1,7 +1,7 @@
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 
-import type { GameDomain } from '../core/types.js';
+import type { GameDomain } from '@core/types.js';
 
 const APP = 'nexus-cli';
 

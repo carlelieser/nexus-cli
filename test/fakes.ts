@@ -3,11 +3,11 @@ import type {
   BrowserSession,
   LaunchOptions,
   ResolvedDownload,
-} from '../src/adapters/browser/Browser.js';
-import type { CookieSource } from '../src/adapters/cookies/CookieSource.js';
-import type { Downloader } from '../src/adapters/download/Downloader.js';
-import type { SessionStore } from '../src/adapters/session/SessionStore.js';
-import type { Cookie, DownloadTarget, Session } from '../src/core/types.js';
+} from '@adapters/browser/Browser.js';
+import type { CookieSource } from '@adapters/cookies/CookieSource.js';
+import type { Downloader } from '@adapters/download/Downloader.js';
+import type { SessionStore } from '@adapters/session/SessionStore.js';
+import type { Cookie, DownloadTarget, Session } from '@core/types.js';
 
 /** A scriptable fake browser session. Maps URL → HTML. */
 export class FakeSession implements BrowserSession {

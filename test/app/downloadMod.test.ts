@@ -3,9 +3,9 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { downloadMod } from '../../src/app/downloadMod.js';
-import { NexusWebAdapter } from '../../src/adapters/nexus/NexusWebAdapter.js';
-import { AuthError } from '../../src/core/errors.js';
+import { downloadMod } from '@app/downloadMod.js';
+import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
+import { AuthError } from '@core/errors.js';
 import { FakeDownloader, FakeSession, noSleep } from '../fakes.js';
 
 const fixture = (name: string): string =>

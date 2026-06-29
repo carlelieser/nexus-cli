@@ -1,4 +1,4 @@
-import type { DownloadTarget } from '../../core/types.js';
+import type { DownloadTarget } from '@core/types.js';
 import type { BrowserSession } from '../browser/Browser.js';
 
 /** Progress of an in-flight file download. */

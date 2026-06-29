@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { FileSessionStore } from '../../src/adapters/session/FileSessionStore.js';
-import type { Session } from '../../src/core/types.js';
+import { FileSessionStore } from '@adapters/session/FileSessionStore.js';
+import type { Session } from '@core/types.js';
 
 const sample: Session = {
   username: 'tester',

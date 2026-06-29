@@ -1,8 +1,8 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { sessionFile } from '../../config/paths.js';
-import type { Session } from '../../core/types.js';
+import { sessionFile } from '@config/paths.js';
+import type { Session } from '@core/types.js';
 import type { SessionStore } from './SessionStore.js';
 
 /** Stores the session as a `600`-mode JSON file in the OS config dir. */

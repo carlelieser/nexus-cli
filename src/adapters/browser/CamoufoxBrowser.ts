@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { Camoufox } from 'camoufox-js';
 import type { BrowserContext, Page } from 'playwright-core';
 
-import { NetworkError } from '../../core/errors.js';
-import type { Cookie } from '../../core/types.js';
+import { NetworkError } from '@core/errors.js';
+import type { Cookie } from '@core/types.js';
 import type { Browser, BrowserSession, LaunchOptions, ResolvedDownload } from './Browser.js';
 
 const ACCOUNT_URL = 'https://www.nexusmods.com/users/myaccount';

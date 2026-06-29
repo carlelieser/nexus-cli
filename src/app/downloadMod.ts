@@ -1,8 +1,8 @@
-import type { BrowserSession } from '../adapters/browser/Browser.js';
-import type { Downloader, DownloadProgress } from '../adapters/download/Downloader.js';
-import type { NexusSite } from '../adapters/nexus/NexusSite.js';
-import { AuthError, ScrapeError } from '../core/errors.js';
-import type { GameDomain, ModResult } from '../core/types.js';
+import type { BrowserSession } from '@adapters/browser/Browser.js';
+import type { Downloader, DownloadProgress } from '@adapters/download/Downloader.js';
+import type { NexusSite } from '@adapters/nexus/NexusSite.js';
+import { AuthError, ScrapeError } from '@core/errors.js';
+import type { GameDomain, ModResult } from '@core/types.js';
 import { withRetry } from './retry.js';
 
 export interface DownloadModDeps {

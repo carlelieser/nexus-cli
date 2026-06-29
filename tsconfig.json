@@ -18,7 +18,15 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@core/*": ["src/core/*"],
+      "@config/*": ["src/config/*"],
+      "@adapters/*": ["src/adapters/*"],
+      "@cli/*": ["src/cli/*"]
+    }
   },
   "include": ["src", "test"],
   "exclude": ["node_modules", "dist"]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { downloadCollection } from '../../src/app/downloadCollection.js';
-import { NexusWebAdapter } from '../../src/adapters/nexus/NexusWebAdapter.js';
+import { downloadCollection } from '@app/downloadCollection.js';
+import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 import { FakeDownloader, FakeSession, noSleep } from '../fakes.js';
 
 const site = new NexusWebAdapter();

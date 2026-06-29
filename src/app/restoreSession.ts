@@ -1,6 +1,6 @@
-import type { Browser, BrowserSession } from '../adapters/browser/Browser.js';
-import type { SessionStore } from '../adapters/session/SessionStore.js';
-import { AuthError } from '../core/errors.js';
+import type { Browser, BrowserSession } from '@adapters/browser/Browser.js';
+import type { SessionStore } from '@adapters/session/SessionStore.js';
+import { AuthError } from '@core/errors.js';
 
 export interface RestoreDeps {
   browser: Browser;

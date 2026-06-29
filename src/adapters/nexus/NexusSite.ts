@@ -1,4 +1,4 @@
-import type { CollectionMember, DownloadTarget, GameDomain } from '../../core/types.js';
+import type { CollectionMember, DownloadTarget, GameDomain } from '@core/types.js';
 
 /** A JSON HTTP request the browser session can execute with the session. */
 export interface JsonRequest {

@@ -5,8 +5,8 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { AuthError, NetworkError } from '../../core/errors.js';
-import type { Cookie } from '../../core/types.js';
+import { AuthError, NetworkError } from '@core/errors.js';
+import type { Cookie } from '@core/types.js';
 import type { CookieSource } from './CookieSource.js';
 
 const exec = promisify(execFile);

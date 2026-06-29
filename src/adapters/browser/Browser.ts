@@ -1,4 +1,4 @@
-import type { Cookie } from '../../core/types.js';
+import type { Cookie } from '@core/types.js';
 
 /** Launch options for a browser. */
 export interface LaunchOptions {
