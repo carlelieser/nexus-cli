@@ -29,15 +29,16 @@ A CLI for downloading mods and collections from [Nexus Mods](https://www.nexusmo
 
 ### `nexus import`
 
-Reads Nexus cookies from the user's existing browser, decrypts them, and persists them as the session. The user must already be logged into Nexus in that browser.
+Reads Nexus cookies from the user's existing browser (or an exported cookie file), decrypts them, and persists them as the session. The user must already be logged into Nexus in that browser.
 
 - **Flags**
-  - `--from <browser>` — source browser to import from (default `chrome`; currently only `chrome` is supported).
+  - `--from <browser>` — source browser to import from (default `chrome`; currently only `chrome` is supported). Mutually exclusive with `--file`.
+  - `--file <path>` — import from a cookie file exported by a browser extension instead of reading the browser directly. Auto-detects a JSON cookie array (Cookie-Editor / EditThisCookie style) or the Netscape `cookies.txt` format. The escape hatch for Chrome's app-bound (`v20`) cookies, which cannot be decrypted directly.
   - `--validate` / `--no-validate` — when enabled (default), launches a headless Camoufox context, seeds the cookies, and confirms they authenticate (the account page loads instead of redirecting to sign-in) before saving. Also resolves the username.
 - **Output**: confirmation of how many cookies were imported, and for which Nexus username (when validation resolves one).
-- **Exit codes**: `0` imported, `1` no usable cookies found / cookies do not authenticate / unsupported browser.
+- **Exit codes**: `0` imported, `1` no usable cookies found / cookies do not authenticate / unsupported browser / unreadable file.
 
-**Cookie decryption (Chrome / macOS):** Chrome's cookie store is a SQLite DB (copied to a temp file since it is locked while Chrome runs). The `v10` AES key is derived via PBKDF2 (SHA-1, 1003 iterations, salt `saltysalt`) from the "Chrome Safe Storage" entry in the macOS Keychain; values are AES-128-CBC decrypted (IV = 16 spaces), and the 32-byte SHA-256 domain-hash prefix newer Chrome prepends is stripped. Cookies using app-bound (`v20`) encryption cannot be read; if no `v10` cookies remain, the command fails with a clear message.
+**Cookie decryption (Chrome / macOS):** Chrome's cookie store is a SQLite DB (copied to a temp file since it is locked while Chrome runs). The `v10` AES key is derived via PBKDF2 (SHA-1, 1003 iterations, salt `saltysalt`) from the "Chrome Safe Storage" entry in the macOS Keychain; values are AES-128-CBC decrypted (IV = 16 spaces), and the 32-byte SHA-256 domain-hash prefix newer Chrome prepends is stripped. Cookies using app-bound (`v20`) encryption cannot be read; if no `v10` cookies remain, the command fails with a clear message pointing to `--file`.
 
 ### `nexus logout`
 
@@ -91,9 +92,10 @@ src/
     browser/           # Camoufox driver — launch, navigate, seed cookies, download
       CamoufoxBrowser.ts
       Browser.ts       # interface the app depends on
-    cookies/           # read + decrypt cookies from an installed browser
+    cookies/           # read + decrypt cookies from an installed browser or a file
       CookieSource.ts  # interface
       ChromeCookieSource.ts
+      FileCookieSource.ts  # exported cookies.txt / JSON (the --file fallback)
     nexus/             # site knowledge: URLs, page scraping, GraphQL, selectors
       NexusSite.ts     # interface
       NexusWebAdapter.ts
@@ -254,7 +256,7 @@ interface Downloader {
 ## 9. Decisions log
 
 - **Auth**: **import cookies from the user's existing browser** (Chrome) instead of an in-CLI interactive login. Driving a fresh automated browser through Nexus's Cloudflare challenge was unreliable even with a human solving it; the user's real browser already holds a challenge-cleared session. (Superseded the original `nexus login` design.)
-- **Cookie decryption**: read Chrome's SQLite store directly and decrypt `v10` cookies via the macOS Keychain key. App-bound (`v20`) cookies are unsupported (clear failure); a file-import fallback is a possible future addition.
+- **Cookie decryption**: read Chrome's SQLite store directly and decrypt `v10` cookies via the macOS Keychain key. App-bound (`v20`) cookies cannot be decrypted; `--file` imports an extension-exported cookie file (JSON or Netscape `cookies.txt`) as the fallback. Both browser and file are `CookieSource` implementations, so the `importSession` use-case is identical for either.
 - **Cloudflare**: pass it by replaying the imported session with a consistent Camoufox fingerprint — `locale` pinned to match the session, `geoip` off (a region mismatch caused hard challenges). The context is warmed on the account page before deep navigation, and `goto` waits out the non-interactive interstitial.
 - **Download mechanism**: resolve the file's signed CDN URL through the Camoufox context (cookies + fingerprint clear Cloudflare), then stream the bytes from Node (the in-page fetch is CORS-blocked on the CDN host). Free downloads require clicking the **Slow download** button inside the `<mod-file-download>` web component's open shadow root — the click fires the `GenerateDownloadUrl` resolver POST whose JSON response carries the signed URL, so the click is mandatory.
 - **Collections via GraphQL**: member files come from the `CollectionRevisionMods` GraphQL operation, not HTML scraping (the page renders members client-side). A collection pins **exact files** (`fileId` + `optional` flag), so we download those directly rather than re-deriving each mod's main file.
@@ -269,5 +271,5 @@ interface Downloader {
 
 - Camoufox concurrency model: separate contexts vs. separate pages for `--concurrency` (currently sequential per browser session).
 - Exact throttle-detection signals and backoff curve constants.
-- Cookie sources beyond Chrome (Firefox/Edge/Safari) and a file-import fallback for app-bound (`v20`) Chrome cookies.
+- Cookie sources beyond Chrome and `--file` (e.g. Firefox/Edge/Safari direct reads).
 - The **Slow download** flow is verified for a free account on a single-file mod and collection resolution (476 files) via dry-run; a full real collection download, multi-main-file mods, and the slow-download timer (when present) still need live coverage.

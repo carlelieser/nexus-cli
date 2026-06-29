@@ -2,10 +2,11 @@ import type { ArgumentsCamelCase, Argv, CommandModule } from 'yargs';
 
 import { importSession } from '@app/importSession.js';
 import { out } from '../output.js';
-import { buildDeps, cookieSourceFor, NEXUS_COOKIE_DOMAIN } from '../wiring.js';
+import { buildDeps, cookieSourceFor, fileCookieSource, NEXUS_COOKIE_DOMAIN } from '../wiring.js';
 
 interface ImportArgs {
   from: string;
+  file?: string;
   validate: boolean;
   verbose: boolean;
 }
@@ -20,6 +21,11 @@ export const importCommand: CommandModule = {
         default: 'chrome',
         describe: 'Browser to import cookies from (chrome)',
       })
+      .option('file', {
+        type: 'string',
+        describe: 'Import from an exported cookie file (cookies.txt or JSON) instead of a browser',
+      })
+      .conflicts('file', 'from')
       .option('validate', {
         type: 'boolean',
         default: true,
@@ -29,7 +35,7 @@ export const importCommand: CommandModule = {
     const argv = raw as unknown as ImportArgs;
     const { browser, store } = buildDeps();
     try {
-      const source = cookieSourceFor(argv.from);
+      const source = argv.file ? fileCookieSource(argv.file) : cookieSourceFor(argv.from);
       const session = await importSession(
         { source, browser, store },
         { domainSuffix: NEXUS_COOKIE_DOMAIN, validate: argv.validate },

@@ -1,6 +1,7 @@
 import { CamoufoxBrowser } from '@adapters/browser/CamoufoxBrowser.js';
 import { ChromeCookieSource } from '@adapters/cookies/ChromeCookieSource.js';
 import type { CookieSource } from '@adapters/cookies/CookieSource.js';
+import { FileCookieSource } from '@adapters/cookies/FileCookieSource.js';
 import { BrowserDownloader } from '@adapters/download/BrowserDownloader.js';
 import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 import { FileSessionStore } from '@adapters/session/FileSessionStore.js';
@@ -31,4 +32,9 @@ export function cookieSourceFor(browser: string): CookieSource {
     default:
       throw new Error(`unsupported browser '${browser}' (supported: chrome)`);
   }
+}
+
+/** Resolve a cookie source from an exported cookie file (--file). */
+export function fileCookieSource(path: string): CookieSource {
+  return new FileCookieSource(path);
 }
