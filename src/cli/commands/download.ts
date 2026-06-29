@@ -21,6 +21,7 @@ interface DownloadArgs {
   concurrency: number;
   'dry-run': boolean;
   optional: boolean;
+  nmm: boolean;
   headful: boolean;
   verbose: boolean;
 }
@@ -54,6 +55,12 @@ export const downloadCommand: CommandModule = {
         type: 'boolean',
         default: false,
         describe: 'For collections, also download files marked optional',
+      })
+      .option('nmm', {
+        type: 'boolean',
+        default: false,
+        describe:
+          'Defer downloading to your mod manager (open each file with nmm=1 in your browser)',
       })
       .option('headful', {
         type: 'boolean',
@@ -155,7 +162,7 @@ export const downloadCommand: CommandModule = {
           : await runMod(deps, session, argv, outDir, spinner, progress, runStart, signal);
 
       clearInterval(ticker);
-      finish(spinner, report, argv['dry-run'], Date.now() - runStart);
+      finish(spinner, report, argv['dry-run'], argv.nmm, Date.now() - runStart);
       process.exitCode = report.failed > 0 ? 1 : 0;
     } catch (e) {
       clearInterval(ticker);
@@ -184,7 +191,7 @@ async function runMod(
   runStart: number,
   signal: AbortSignal,
 ): Promise<DownloadReport> {
-  const verb = argv['dry-run'] ? 'Resolving' : 'Downloading';
+  const verb = argv.nmm ? 'Opening' : argv['dry-run'] ? 'Resolving' : 'Downloading';
   progress.start(`${verb} mod ${argv.mod}`);
   spinner.text = progress.render();
   const result: ModResult = await downloadMod(deps, session, {
@@ -192,6 +199,7 @@ async function runMod(
     modId: argv.mod!,
     outDir,
     dryRun: argv['dry-run'],
+    nmm: argv.nmm,
     retryAttempts: RETRY_ATTEMPTS,
     retryBaseDelayMs: RETRY_BASE_DELAY_MS,
     signal,
@@ -222,6 +230,7 @@ async function runCollection(
     outDir,
     concurrency: argv.concurrency,
     dryRun: argv['dry-run'],
+    nmm: argv.nmm,
     includeOptional: argv.optional,
     retryAttempts: RETRY_ATTEMPTS,
     retryBaseDelayMs: RETRY_BASE_DELAY_MS,
@@ -232,7 +241,7 @@ async function runCollection(
     },
     onStart: (member, i, total) => {
       const name = member.name ?? `mod ${member.modId}`;
-      const verb = argv['dry-run'] ? 'Resolving' : 'Downloading';
+      const verb = argv.nmm ? 'Opening' : argv['dry-run'] ? 'Resolving' : 'Downloading';
       progress.start(`[${i}/${total}] ${verb} ${name}`);
       global.startFile(member.sizeBytes ?? 0);
       spinner.text = composeStatus(progress, global, Date.now() - runStart);
@@ -256,7 +265,13 @@ async function runCollection(
 }
 
 /** Stop the spinner with a final summary line and (for dry-run) the listing. */
-function finish(spinner: Ora, report: DownloadReport, dryRun: boolean, elapsedMs: number): void {
+function finish(
+  spinner: Ora,
+  report: DownloadReport,
+  dryRun: boolean,
+  nmm: boolean,
+  elapsedMs: number,
+): void {
   if (dryRun) {
     spinner.stop();
     for (const r of report.results) {
@@ -267,6 +282,14 @@ function finish(spinner: Ora, report: DownloadReport, dryRun: boolean, elapsedMs
   }
 
   const took = `in ${clock(elapsedMs / 1000)}`;
+
+  // nmm opens URLs rather than writing files; report the handoff, not "downloaded".
+  if (nmm) {
+    const msg = `Handed off ${report.succeeded} file(s) to your mod manager ${took}`;
+    if (report.failed > 0) spinner.warn(`${msg} (${report.failed} failed)`);
+    else spinner.succeed(msg);
+    return;
+  }
 
   // For a single mod, list the files written; for a collection, just the tally.
   if (report.results.length === 1 && report.results[0]?.ok) {

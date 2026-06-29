@@ -5,9 +5,14 @@ import { AuthError, ScrapeError } from '@core/errors.js';
 import type { GameDomain, ModResult } from '@core/types.js';
 import { withRetry } from './retry.js';
 
+/** Opens a URL in the user's default OS browser (for the mod-manager handoff). */
+export type Opener = (url: string) => Promise<void>;
+
 export interface DownloadModDeps {
   site: NexusSite;
   downloader: Downloader;
+  /** Required only for `nmm` runs. */
+  opener?: Opener;
 }
 
 export interface DownloadModParams {
@@ -15,6 +20,8 @@ export interface DownloadModParams {
   modId: number;
   outDir: string;
   dryRun: boolean;
+  /** Defer the download to the user's mod manager instead of fetching. */
+  nmm?: boolean;
   retryAttempts: number;
   retryBaseDelayMs: number;
   /** Injected sleep for retry, for deterministic tests. */
@@ -56,6 +63,21 @@ export async function downloadMod(
       ok: true,
       files: main.map((t) => t.fileName ?? `file-${t.fileId}`),
     };
+  }
+
+  // `nmm` hands off to the user's mod manager: open each file's download URL
+  // with `nmm=1` in their real browser (which has the `nxm://` handler) rather
+  // than streaming the file ourselves. Each target.url already carries a query
+  // string, so the param appends as `&nmm=1`.
+  if (params.nmm) {
+    if (!deps.opener) throw new ScrapeError('nmm requires a URL opener');
+    const opened: string[] = [];
+    for (const target of main) {
+      params.signal?.throwIfAborted();
+      await deps.opener(`${target.url}&nmm=1`);
+      opened.push(target.fileName ?? `file-${target.fileId}`);
+    }
+    return { modId: params.modId, ok: true, files: opened };
   }
 
   const files: string[] = [];

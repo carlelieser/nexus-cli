@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { downloadMod } from '@app/downloadMod.js';
 import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 import { AuthError, isCancel } from '@core/errors.js';
-import { FakeDownloader, FakeSession, noSleep } from '../fakes.js';
+import { FakeDownloader, FakeOpener, FakeSession, noSleep } from '../fakes.js';
 
 const fixture = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url)), 'utf8');
@@ -49,6 +49,34 @@ describe('downloadMod', () => {
     });
     expect(downloader.fetched).toHaveLength(0);
     expect(result.files).toEqual(['Awesome Mod 2.1', 'Awesome Mod - Patch 1.0']);
+  });
+
+  it('nmm opens each main file with nmm=1 and does not download', async () => {
+    const downloader = new FakeDownloader();
+    const opener = new FakeOpener();
+    const result = await downloadMod(
+      { site, downloader, opener: opener.open },
+      sessionFor(fixture('mod-files.html')),
+      { ...baseParams, nmm: true },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(downloader.fetched).toHaveLength(0);
+    expect(opener.opened).toHaveLength(2);
+    expect(opener.opened.every((u) => u.endsWith('&nmm=1'))).toBe(true);
+    expect(
+      opener.opened.map((u) => Number(/file_id=(\d+)/.exec(u)?.[1])).sort((a, b) => a - b),
+    ).toEqual([4001, 4002]);
+  });
+
+  it('nmm + dry run opens nothing', async () => {
+    const opener = new FakeOpener();
+    await downloadMod(
+      { site, downloader: new FakeDownloader(), opener: opener.open },
+      sessionFor(fixture('mod-files.html')),
+      { ...baseParams, nmm: true, dryRun: true },
+    );
+    expect(opener.opened).toEqual([]);
   });
 
   it('throws AuthError when the session is bounced to the sign-in host', async () => {
