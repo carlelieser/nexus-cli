@@ -47,7 +47,16 @@ CMD
 else
   cat > "$STAGE/nexus" <<'SH'
 #!/usr/bin/env sh
-here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# Resolve symlinks so `here` is the install dir even when run via a linked name.
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink -- "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname -- "$self")/$link ;;
+  esac
+done
+here=$(CDPATH= cd -- "$(dirname -- "$self")" && pwd)
 exec "$here/bin/node" "$here/app/dist/cli/index.js" "$@"
 SH
   chmod +x "$STAGE/nexus" "$STAGE/bin/node"
