@@ -11,23 +11,31 @@ NAME="nexus-${os}-${arch}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Run the bundled launcher. On Windows the launcher is a .cmd, which Git Bash
-# can't exec directly — invoke it through cmd. Extract with the same tool that
-# created the archive (Expand-Archive), since unzip mangles the backslash paths
-# PowerShell's Compress-Archive writes.
+# Run the bundled Node against the app entry directly. Git Bash can exec the
+# .exe but not the .cmd wrapper (and routing through cmd mangles args), so we
+# bypass the launcher here — it's the same runtime + app the launcher invokes.
+# Extract the Windows zip with Expand-Archive (it was made by Compress-Archive;
+# unzip mangles its backslash paths).
 if [ "$os" = "win" ]; then
   powershell -NoProfile -Command \
     "Expand-Archive -Path 'binaries/${NAME}.zip' -DestinationPath '$work' -Force"
-  launcher="$work/${NAME}/nexus.cmd"
-  run() { MSYS_NO_PATHCONV=1 cmd //c "$(cygpath -w "$launcher")" "$@"; }
+  app="$work/${NAME}"
+  run() { "$app/bin/node.exe" "$app/app/dist/cli/index.js" "$@"; }
 else
   tar -xzf "binaries/${NAME}.tar.gz" -C "$work"
-  launcher="$work/${NAME}/nexus"
-  run() { "$launcher" "$@"; }
+  app="$work/${NAME}"
+  run() { "$app/bin/node" "$app/app/dist/cli/index.js" "$@"; }
 fi
 
 echo "1/2 --help"
-run --help
+help_out="$(run --help 2>&1 || true)"
+echo "$help_out" | sed 's/^/    /'
+# Assert nexus actually ran — guards against a launcher/exec quirk that exits
+# 0 without running the app (a silent false pass).
+if ! echo "$help_out" | grep -q "nexus <command>"; then
+  echo "FAIL: --help did not produce nexus help output" >&2
+  exit 1
+fi
 
 # Drive `import --file` with a fake-but-non-empty cookie file. The file source
 # always succeeds (unlike `--from chrome`, which bails before launch on a CI
@@ -40,7 +48,6 @@ cookies="$work/cookies.json"
 cat > "$cookies" <<'JSON'
 [{ "name": "nexusmods_session", "value": "smoke", "domain": ".nexusmods.com", "path": "/" }]
 JSON
-# The launcher runs through cmd on Windows, so pass it a native path.
 cookies_arg="$cookies"
 [ "$os" = "win" ] && cookies_arg="$(cygpath -w "$cookies")"
 
@@ -50,6 +57,14 @@ echo "$out" | sed 's/^/    /'
 
 if echo "$out" | grep -qiE "DYNAMIC_IMPORT_CALLBACK_MISSING|was not included into executable|Cannot find module|NODE_MODULE_VERSION|ERR_DLOPEN|invalid ELF|symbol not found"; then
   echo "FAIL: archive crashed on the browser-launch / native-addon path" >&2
+  exit 1
+fi
+
+# Assert the run actually reached the app: it read the cookie file (so it got
+# into importSession), rather than failing to start. Without this, an exec
+# quirk that prints nothing would pass.
+if ! echo "$out" | grep -qiE "cookie|nexus|logged in|auth"; then
+  echo "FAIL: launch path produced no recognizable nexus output" >&2
   exit 1
 fi
 
