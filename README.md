@@ -32,7 +32,15 @@ nexus download https://www.nexusmods.com/skyrimspecialedition/mods/12604
 Download an entire collection:
 
 ```sh
-nexus download https://www.nexusmods.com/games/skyrimspecialedition/collections/abc123
+nexus download https://www.nexusmods.com/games/skyrimspecialedition/collections/llafgc
+```
+
+Hand the download off to your mod manager.
+
+```sh
+nexus download https://www.nexusmods.com/skyrimspecialedition/mods/12604 --nmm
+# Works on collections, too!
+nexus download https://www.nexusmods.com/games/skyrimspecialedition/collections/llafgc --nmm
 ```
 
 Run `nexus --help` for all commands and flags.
