@@ -1,6 +1,6 @@
 node_modules/
 dist/
-build/
+dist-archive/
 binaries/
 downloads/
 *.log

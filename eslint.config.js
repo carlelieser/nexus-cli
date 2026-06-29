@@ -5,7 +5,14 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'build/**', 'node_modules/**', 'downloads/**', 'test/fixtures/**'],
+    ignores: [
+      'dist/**',
+      'dist-archive/**',
+      'binaries/**',
+      'node_modules/**',
+      'downloads/**',
+      'test/fixtures/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

@@ -37,8 +37,6 @@
   },
   "scripts": {
     "build": "vite build",
-    "build:bundle": "vite build --config vite.bundle.config.ts",
-    "build:binary": "npm run build:bundle && pkg build/bundle/index.cjs --config package.json --target node22 --output binaries/nexus",
     "dev": "vite build --watch",
     "start": "node ./dist/cli/index.js",
     "test": "vitest run",
@@ -73,7 +71,6 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
     "@types/yargs": "^17.0.33",
-    "@yao-pkg/pkg": "^6.20.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
@@ -89,13 +86,5 @@
   },
   "overrides": {
     "playwright-core": "1.49.1"
-  },
-  "pkg": {
-    "assets": [
-      "node_modules/playwright-core/**/*",
-      "node_modules/camoufox-js/**/*",
-      "node_modules/header-generator/data_files/**/*",
-      "node_modules/fingerprint-generator/data_files/**/*"
-    ]
   }
 }

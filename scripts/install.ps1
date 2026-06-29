@@ -3,30 +3,34 @@
 $ErrorActionPreference = 'Stop'
 
 $repo = 'carlelieser/nexus-cli'
-$binName = 'nexus'
 $installDir = if ($env:NEXUS_INSTALL_DIR) { $env:NEXUS_INSTALL_DIR } else { "$env:LOCALAPPDATA\Programs\nexus" }
 
-$arch = $env:PROCESSOR_ARCHITECTURE
-if ($arch -ne 'AMD64') {
-  Write-Error "Unsupported architecture: $arch. Install via npm instead."
+if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') {
+  Write-Error "Unsupported architecture: $env:PROCESSOR_ARCHITECTURE. Install via npm instead."
 }
 
-$asset = "$binName-win-x64.exe"
-$url = "https://github.com/$repo/releases/latest/download/$asset"
-$target = Join-Path $installDir "$binName.exe"
+$name = 'nexus-win-x64'
+$url = "https://github.com/$repo/releases/latest/download/$name.zip"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "$name.zip"
 
-Write-Host "Downloading $asset..."
+Write-Host "Downloading $name..."
+Invoke-WebRequest -Uri $url -OutFile $tmp
+
+# Replace any prior install so upgrades are clean.
+if (Test-Path $installDir) { Remove-Item -Recurse -Force $installDir }
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-Invoke-WebRequest -Uri $url -OutFile $target
+Expand-Archive -Path $tmp -DestinationPath $installDir -Force
+Remove-Item $tmp
 
-Write-Host "Installed to $target"
+# The zip contains a top-level nexus-win-x64\ folder; the launcher lives there.
+$appDir = Join-Path $installDir $name
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if (($userPath -split ';') -notcontains $installDir) {
-  $newPath = if ($userPath) { "$userPath;$installDir" } else { $installDir }
+if (($userPath -split ';') -notcontains $appDir) {
+  $newPath = if ($userPath) { "$userPath;$appDir" } else { $appDir }
   [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
-  $env:Path = "$env:Path;$installDir"
-  Write-Host "Added $installDir to your PATH."
+  $env:Path = "$env:Path;$appDir"
+  Write-Host "Added $appDir to your PATH."
 }
 
-Write-Host "Done. Run '$binName --help' to get started."
+Write-Host "Done. Run 'nexus --help' to get started."

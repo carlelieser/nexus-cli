@@ -1,3 +1,23 @@
-import { run } from './run.js';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
-await run();
+import { downloadCommand } from './commands/download.js';
+import { importCommand } from './commands/import.js';
+import { logoutCommand } from './commands/logout.js';
+
+await yargs(hideBin(process.argv))
+  .scriptName('nexus')
+  .usage('$0 <command> [options]')
+  .option('verbose', {
+    type: 'boolean',
+    default: false,
+    describe: 'Print full stack traces on error',
+    global: true,
+  })
+  .command(importCommand)
+  .command(logoutCommand)
+  .command(downloadCommand)
+  .demandCommand(1, 'a command is required')
+  .strict()
+  .help()
+  .parseAsync();
