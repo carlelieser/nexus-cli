@@ -9,7 +9,8 @@ import { NetworkError } from '@core/errors.js';
 import type { Cookie } from '@core/types.js';
 import type { Browser, BrowserSession, LaunchOptions, ResolvedDownload } from './Browser.js';
 
-const ACCOUNT_URL = 'https://www.nexusmods.com/users/myaccount';
+const MAIN_HOST = 'www.nexusmods.com';
+const ACCOUNT_URL = `https://${MAIN_HOST}/users/myaccount`;
 const SIGN_IN_HOST = 'users.nexusmods.com';
 const NEXUS_DOMAIN = '.nexusmods.com';
 
@@ -162,6 +163,14 @@ class CamoufoxSession implements BrowserSession {
     // Run fetch INSIDE the page so cookies + origin (nexusmods.com) apply —
     // required for the GraphQL endpoint to accept the request.
     //
+    // The fetch is cross-origin (api-router.nexusmods.com), so the page's own
+    // origin must be www.nexusmods.com or the browser rejects it with a CORS
+    // "NetworkError". After session restore the page sits on the account host
+    // (users.nexusmods.com / settings), so move to www first.
+    if (new URL(this.page.url()).host !== MAIN_HOST) {
+      await this.navigate(`https://${MAIN_HOST}/`).catch(() => undefined);
+    }
+
     // The page may still be settling a client-side redirect from the preceding
     // navigation (e.g. account-page warm-up), which destroys the execution
     // context mid-evaluate. Wait for the DOM to be ready and retry once.
