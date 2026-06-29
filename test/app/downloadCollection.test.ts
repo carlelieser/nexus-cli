@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { downloadCollection } from '@app/downloadCollection.js';
 import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 import { isCancel } from '@core/errors.js';
-import { FakeDownloader, FakeSession, noSleep } from '../fakes.js';
+import { FakeDownloader, FakeOpener, FakeSession, noSleep } from '../fakes.js';
 
 const site = new NexusWebAdapter();
 const GAME = 'skyrimspecialedition';
@@ -69,6 +69,23 @@ describe('downloadCollection', () => {
       { ...baseParams, includeOptional: true },
     );
     expect(downloader.fetched.map((t) => t.fileId).sort((a, b) => a - b)).toEqual([4001, 4002]);
+  });
+
+  it('nmm opens each pinned file and does not download', async () => {
+    const downloader = new FakeDownloader();
+    const opener = new FakeOpener();
+    const report = await downloadCollection(
+      { site, downloader, opener: opener.open },
+      collectionSession([member(100, 4001, false), member(101, 4002, false)]),
+      { ...baseParams, nmm: true },
+    );
+
+    expect(report.succeeded).toBe(2);
+    expect(downloader.fetched).toEqual([]);
+    expect(opener.opened.sort()).toEqual([
+      site.nmmDownloadUrl(GAME, 100, 4001),
+      site.nmmDownloadUrl(GAME, 101, 4002),
+    ]);
   });
 
   it('is best-effort: one failing file does not abort the batch', async () => {

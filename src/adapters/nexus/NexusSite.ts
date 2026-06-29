@@ -29,6 +29,13 @@ export interface NexusSite {
   fileDownloadUrl(game: GameDomain, modId: number, fileId: number): string;
 
   /**
+   * Build the mod-manager handoff URL for a file: the download URL with
+   * `nmm=1`, which makes Nexus fire the `nxm://` deep link the user's installed
+   * mod manager catches. Opened in the user's real browser, never fetched.
+   */
+  nmmDownloadUrl(game: GameDomain, modId: number, fileId: number): string;
+
+  /**
    * Parse a mod files page's HTML into downloadable targets.
    * Implementations should tag each target's category so the app can keep
    * only `main` files.

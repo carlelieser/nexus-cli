@@ -11,11 +11,14 @@ import {
   summarize,
 } from '@core/types.js';
 import { BackoffPolicy, DEFAULT_BACKOFF } from './backoff.js';
+import type { Opener } from './downloadMod.js';
 import { isThrottle, withRetry } from './retry.js';
 
 export interface DownloadCollectionDeps {
   site: NexusSite;
   downloader: Downloader;
+  /** Required only for `nmm` runs. */
+  opener?: Opener;
 }
 
 export interface DownloadCollectionParams {
@@ -26,6 +29,8 @@ export interface DownloadCollectionParams {
   dryRun: boolean;
   /** Include files the collection marks optional (default: required only). */
   includeOptional: boolean;
+  /** Defer the download to the user's mod manager instead of fetching. */
+  nmm?: boolean;
   retryAttempts: number;
   retryBaseDelayMs: number;
   /** Injected sleep, for deterministic tests. Defaults to real timers. */
@@ -103,12 +108,18 @@ async function runOne(
   params: DownloadCollectionParams,
   member: CollectionMember,
 ): Promise<ModResult> {
+  const name = member.name ?? `mod ${member.modId} file ${member.fileId}`;
+
   if (params.dryRun) {
-    return {
-      modId: member.modId,
-      ok: true,
-      files: [member.name ?? `mod ${member.modId} file ${member.fileId}`],
-    };
+    return { modId: member.modId, ok: true, files: [name] };
+  }
+
+  // `nmm` hands off to the user's mod manager: open the file's `nmm=1` URL in
+  // their real browser rather than streaming it ourselves.
+  if (params.nmm) {
+    if (!deps.opener) throw new Error('nmm requires a URL opener');
+    await deps.opener(deps.site.nmmDownloadUrl(member.game, member.modId, member.fileId));
+    return { modId: member.modId, ok: true, files: [name] };
   }
 
   const target: DownloadTarget = {

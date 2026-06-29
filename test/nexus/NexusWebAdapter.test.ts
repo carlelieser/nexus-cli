@@ -23,6 +23,12 @@ describe('NexusWebAdapter URLs', () => {
       'https://www.nexusmods.com/games/skyrimspecialedition/collections/abc123/mods',
     );
   });
+
+  it('builds an nmm handoff url', () => {
+    expect(site.nmmDownloadUrl('skyrimspecialedition', 100, 4001)).toBe(
+      'https://www.nexusmods.com/skyrimspecialedition/mods/100?tab=files&file_id=4001&nmm=1',
+    );
+  });
 });
 
 describe('collectionMembersQuery', () => {

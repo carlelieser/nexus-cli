@@ -123,4 +123,12 @@ export class FakeDownloader implements Downloader {
   }
 }
 
+/** Records URLs handed to the OS opener (the nmm handoff). */
+export class FakeOpener {
+  opened: string[] = [];
+  open = async (url: string): Promise<void> => {
+    this.opened.push(url);
+  };
+}
+
 export const noSleep = async (): Promise<void> => {};

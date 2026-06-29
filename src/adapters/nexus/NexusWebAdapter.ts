@@ -87,6 +87,10 @@ export class NexusWebAdapter implements NexusSite {
     return `${BASE}/${game}/mods/${modId}?tab=files&file_id=${fileId}`;
   }
 
+  nmmDownloadUrl(game: GameDomain, modId: number, fileId: number): string {
+    return `${this.fileDownloadUrl(game, modId, fileId)}&nmm=1`;
+  }
+
   parseDownloadTargets(html: string): DownloadTarget[] {
     const base = modBaseUrl(html);
     const targets: DownloadTarget[] = [];
