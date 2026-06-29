@@ -69,7 +69,11 @@ export const downloadCommand: CommandModule = {
 
     // One spinner spans the whole run: the (slow) session restore + Cloudflare
     // warm-up, then per-file progress. ora auto-disables on non-TTY.
-    const spinner = ora({ text: 'Restoring session…' }).start();
+    //
+    // discardStdin:false is REQUIRED: ora's default stdin discarder puts the TTY
+    // in raw mode, which disables the terminal's SIGINT generation — Ctrl+C then
+    // never reaches our handler and the run can't be cancelled.
+    const spinner = ora({ text: 'Restoring session…', discardStdin: false }).start();
 
     // Ctrl+C: first press aborts gracefully (stop new work, abort the in-flight
     // file, close the browser, print a summary); a second press hard-exits in
