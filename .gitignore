@@ -1,5 +1,7 @@
 node_modules/
 dist/
+build/
+binaries/
 downloads/
 *.log
 .DS_Store

@@ -1,0 +1,73 @@
+name: Release binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14 # Apple Silicon
+            os: macos
+            arch: arm64
+          - runner: macos-13 # Intel
+            os: macos
+            arch: x64
+          - runner: ubuntu-latest
+            os: linux
+            arch: x64
+          - runner: windows-latest
+            os: win
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Full install compiles this platform's native addons, then build, then
+      # drop dev deps so only the runtime tree ships in the archive.
+      - run: npm ci
+      - run: npm run build
+      - run: npm prune --omit=dev
+
+      - name: Assemble archive
+        shell: bash
+        run: scripts/build-archive.sh ${{ matrix.os }} ${{ matrix.arch }}
+
+      - name: Smoke test (browser launch path)
+        shell: bash
+        run: scripts/smoke-archive.sh ${{ matrix.os }} ${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-${{ matrix.os }}-${{ matrix.arch }}
+          path: binaries/nexus-${{ matrix.os }}-${{ matrix.arch }}.*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: binaries
+          merge-multiple: true
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: binaries/*
+          fail_on_unmatched_files: true

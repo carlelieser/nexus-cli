@@ -1,6 +1,10 @@
 dist
+build
+binaries
 node_modules
 downloads
 package-lock.json
 test/fixtures
 *.html
+*.sh
+*.ps1
