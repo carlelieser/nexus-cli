@@ -1,7 +1,7 @@
 {
   "name": "nexus-cli",
   "version": "0.1.0",
-  "description": "CLI for downloading mods and collections from Nexus Mods via browser automation",
+  "description": "Unofficial CLI for non-premium Nexus users.",
   "type": "module",
   "bin": {
     "nexus": "./dist/cli/index.js"
