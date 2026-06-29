@@ -1,6 +1,6 @@
 {
   "name": "@carlelieser/nexus-cli",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Unofficial CLI for non-premium Nexus users.",
   "type": "module",
   "author": "Carlos Santos <hello@carlelieser.com>",
