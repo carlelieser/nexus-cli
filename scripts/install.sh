@@ -19,8 +19,6 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture: $(uname -m). Install via npm instead." >&2; exit 1 ;;
 esac
 
-# Prebuilt archives exist only for these platforms (see the CI matrix). Anything
-# else (Intel Mac, Linux arm64) installs via npm.
 case "${os}-${arch}" in
   macos-arm64 | linux-x64) ;;
   *)
@@ -44,12 +42,10 @@ else
   exit 1
 fi
 
-# Replace any prior install so upgrades are clean.
 rm -rf "$INSTALL_DIR"
 mkdir -p "$INSTALL_DIR" "$BIN_DIR"
 tar -xzf "$tmp/nexus.tar.gz" -C "$INSTALL_DIR" --strip-components 1
 
-# macOS quarantines downloaded binaries; strip it so the bundled node runs.
 if [ "$os" = "macos" ] && command -v xattr >/dev/null 2>&1; then
   xattr -dr com.apple.quarantine "$INSTALL_DIR" 2>/dev/null || true
 fi

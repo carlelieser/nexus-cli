@@ -1,29 +1,16 @@
 #!/usr/bin/env bash
-# Assemble a self-contained release archive for one platform: a Node runtime,
-# the built app, and the production node_modules (with this platform's native
-# addons). Run on a native runner for the target platform — native addons
-# (better-sqlite3, impit, @primno/dpapi) are platform-specific and cannot be
-# cross-built.
-#
-# Usage: scripts/build-archive.sh <os> <arch>
-#   os:   macos | linux | win
-#   arch: arm64 | x64
+# Assembles a self-contained release archive: bundled Node + built app + deps.
 set -euo pipefail
 
 os="${1:?os required (macos|linux|win)}"
 arch="${2:?arch required (arm64|x64)}"
 
-# Bundle the SAME Node version that compiled the native addons in node_modules.
-# A different major has a different ABI (NODE_MODULE_VERSION), and the bundled
-# Node would then fail to load better-sqlite3 / impit at runtime. Deriving it
-# from the running Node keeps the two locked together.
 NODE_VERSION="$(node -p 'process.versions.node')"
 NAME="nexus-${os}-${arch}"
 BUILD_DIR="build"
 STAGE="${BUILD_DIR}/${NAME}"
 OUT_DIR="binaries"
 
-# Map our os/arch to Node's release naming.
 case "$os" in
   macos) node_os="darwin"; ext="tar.gz" ;;
   linux) node_os="linux"; ext="tar.gz" ;;
@@ -37,8 +24,6 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/bin" "$STAGE/app" "$OUT_DIR" "${BUILD_DIR}/node"
 
 echo "Fetching ${node_url}"
-# Windows ships only a .zip, and Git Bash's tar is GNU tar (can't read zip), so
-# extract with PowerShell's Expand-Archive. macOS/Linux use .tar.gz via tar.
 if [ "$ext" = "zip" ]; then
   curl -fsSL "$node_url" -o "${BUILD_DIR}/node.zip"
   powershell -NoProfile -Command \
@@ -50,15 +35,10 @@ else
   cp "${BUILD_DIR}/node/${node_pkg}/bin/node" "$STAGE/bin/node"
 fi
 
-# The built ESM app plus only production deps (incl. native addons) for THIS
-# platform. Copy the existing install rather than re-running npm so the native
-# binaries already compiled on this runner are preserved.
 cp -R dist "$STAGE/app/dist"
 cp package.json "$STAGE/app/package.json"
 cp -R node_modules "$STAGE/app/node_modules"
 
-# Launcher. On *nix a shell shim; on Windows a .cmd. Both exec the bundled
-# Node against the app entry, forwarding all args.
 if [ "$os" = "win" ]; then
   cat > "$STAGE/nexus.cmd" <<'CMD'
 @echo off
@@ -75,7 +55,6 @@ fi
 
 echo "Archiving ${NAME}.${ext}"
 if [ "$ext" = "zip" ]; then
-  # `zip` is absent in Git Bash; PowerShell's Compress-Archive is always present.
   powershell -NoProfile -Command \
     "Compress-Archive -Path '${BUILD_DIR}/${NAME}' -DestinationPath '${OUT_DIR}/${NAME}.zip' -Force"
 else

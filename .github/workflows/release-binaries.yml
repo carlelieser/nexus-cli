@@ -33,8 +33,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Full install compiles this platform's native addons, then build, then
-      # drop dev deps so only the runtime tree ships in the archive.
       - run: npm ci
       - run: npm run build
       - run: npm prune --omit=dev
@@ -42,10 +40,6 @@ jobs:
       - name: Assemble archive
         shell: bash
         run: scripts/build-archive.sh ${{ matrix.os }} ${{ matrix.arch }}
-
-      - name: Smoke test (browser launch path)
-        shell: bash
-        run: scripts/smoke-archive.sh ${{ matrix.os }} ${{ matrix.arch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

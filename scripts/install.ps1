@@ -16,13 +16,11 @@ $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "$name.zip"
 Write-Host "Downloading $name..."
 Invoke-WebRequest -Uri $url -OutFile $tmp
 
-# Replace any prior install so upgrades are clean.
 if (Test-Path $installDir) { Remove-Item -Recurse -Force $installDir }
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 Expand-Archive -Path $tmp -DestinationPath $installDir -Force
 Remove-Item $tmp
 
-# The zip contains a top-level nexus-win-x64\ folder; the launcher lives there.
 $appDir = Join-Path $installDir $name
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
