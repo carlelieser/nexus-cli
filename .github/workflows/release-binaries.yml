@@ -18,9 +18,6 @@ jobs:
           - runner: macos-14 # Apple Silicon
             os: macos
             arch: arm64
-          - runner: macos-13 # Intel
-            os: macos
-            arch: x64
           - runner: ubuntu-latest
             os: linux
             arch: x64
