@@ -19,7 +19,8 @@ arch="${2:?arch required (arm64|x64)}"
 # from the running Node keeps the two locked together.
 NODE_VERSION="$(node -p 'process.versions.node')"
 NAME="nexus-${os}-${arch}"
-STAGE="dist-archive/${NAME}"
+BUILD_DIR="build"
+STAGE="${BUILD_DIR}/${NAME}"
 OUT_DIR="binaries"
 
 # Map our os/arch to Node's release naming.
@@ -33,17 +34,17 @@ node_pkg="node-v${NODE_VERSION}-${node_os}-${arch}"
 node_url="https://nodejs.org/dist/v${NODE_VERSION}/${node_pkg}.${ext}"
 
 rm -rf "$STAGE"
-mkdir -p "$STAGE/bin" "$STAGE/app" "$OUT_DIR" dist-archive/node
+mkdir -p "$STAGE/bin" "$STAGE/app" "$OUT_DIR" "${BUILD_DIR}/node"
 
 echo "Fetching ${node_url}"
 if [ "$ext" = "zip" ]; then
-  curl -fsSL "$node_url" -o dist-archive/node.zip
-  unzip -q dist-archive/node.zip -d dist-archive/node
-  cp "dist-archive/node/${node_pkg}/node.exe" "$STAGE/bin/node.exe"
+  curl -fsSL "$node_url" -o "${BUILD_DIR}/node.zip"
+  unzip -q "${BUILD_DIR}/node.zip" -d "${BUILD_DIR}/node"
+  cp "${BUILD_DIR}/node/${node_pkg}/node.exe" "$STAGE/bin/node.exe"
 else
-  curl -fsSL "$node_url" -o dist-archive/node.tgz
-  tar -xzf dist-archive/node.tgz -C dist-archive/node
-  cp "dist-archive/node/${node_pkg}/bin/node" "$STAGE/bin/node"
+  curl -fsSL "$node_url" -o "${BUILD_DIR}/node.tgz"
+  tar -xzf "${BUILD_DIR}/node.tgz" -C "${BUILD_DIR}/node"
+  cp "${BUILD_DIR}/node/${node_pkg}/bin/node" "$STAGE/bin/node"
 fi
 
 # The built ESM app plus only production deps (incl. native addons) for THIS
@@ -71,9 +72,9 @@ fi
 
 echo "Archiving ${NAME}.${ext}"
 if [ "$ext" = "zip" ]; then
-  (cd dist-archive && zip -qr "../${OUT_DIR}/${NAME}.zip" "${NAME}")
+  (cd "$BUILD_DIR" && zip -qr "../${OUT_DIR}/${NAME}.zip" "${NAME}")
 else
-  tar -czf "${OUT_DIR}/${NAME}.tar.gz" -C dist-archive "${NAME}"
+  tar -czf "${OUT_DIR}/${NAME}.tar.gz" -C "$BUILD_DIR" "${NAME}"
 fi
 
 echo "Built ${OUT_DIR}/${NAME}.${ext}"

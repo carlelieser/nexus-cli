@@ -7,7 +7,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
-      'dist-archive/**',
+      'build/**',
       'binaries/**',
       'node_modules/**',
       'downloads/**',
