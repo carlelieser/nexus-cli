@@ -6,9 +6,6 @@ const BASE = 'https://www.nexusmods.com';
 const GRAPHQL_URL = 'https://api-router.nexusmods.com/graphql';
 const SIGN_IN_HOST = 'users.nexusmods.com';
 
-// Collection members come from Nexus's GraphQL API (the page renders them
-// client-side, so they are absent from static HTML). We request only the
-// fields we need.
 const COLLECTION_QUERY = `
   query CollectionRevisionMods($slug: String!, $viewAdultContent: Boolean = true) {
     collectionRevision(slug: $slug, viewAdultContent: $viewAdultContent) {

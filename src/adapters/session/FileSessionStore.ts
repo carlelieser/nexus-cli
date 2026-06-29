@@ -11,7 +11,6 @@ export class FileSessionStore implements SessionStore {
 
   async save(s: Session): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true });
-    // mode 0o600: owner read/write only.
     await writeFile(this.path, JSON.stringify(s, null, 2), { mode: 0o600 });
   }
 

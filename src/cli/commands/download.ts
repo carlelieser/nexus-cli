@@ -207,7 +207,6 @@ async function runCollection(
     retryAttempts: RETRY_ATTEMPTS,
     retryBaseDelayMs: RETRY_BASE_DELAY_MS,
     signal,
-    // Once the full list is known, seed the global total and start its timer.
     onResolved: (members) => {
       global.setTotal(members);
       global.begin();
