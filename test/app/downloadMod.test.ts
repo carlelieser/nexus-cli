@@ -51,13 +51,13 @@ describe('downloadMod', () => {
     expect(result.files).toEqual(['Awesome Mod 2.1', 'Awesome Mod - Patch 1.0']);
   });
 
-  it('throws AuthError on an auth wall', async () => {
+  it('throws AuthError when the session is bounced to the sign-in host', async () => {
+    const modUrl = site.modFilesUrl('skyrimspecialedition', 100);
+    const session = new FakeSession();
+    session.redirects.set(modUrl, 'https://users.nexusmods.com/auth/sign_in');
+
     await expect(
-      downloadMod(
-        { site, downloader: new FakeDownloader() },
-        sessionFor(fixture('authwall.html')),
-        baseParams,
-      ),
+      downloadMod({ site, downloader: new FakeDownloader() }, session, baseParams),
     ).rejects.toBeInstanceOf(AuthError);
   });
 

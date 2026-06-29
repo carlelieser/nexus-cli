@@ -29,8 +29,12 @@ export class FakeSession implements BrowserSession {
     return this;
   }
 
-  async goto(url: string): Promise<void> {
+  /** Maps a requested URL to the URL it redirects to (e.g. the sign-in host). */
+  redirects = new Map<string, string>();
+
+  async goto(url: string): Promise<string> {
     this.goneTo.push(url);
+    return this.redirects.get(url) ?? url;
   }
   async setCookies(cookies: Cookie[]): Promise<void> {
     this.seededCookies = cookies;

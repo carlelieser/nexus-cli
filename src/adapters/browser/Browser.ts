@@ -11,8 +11,12 @@ export interface LaunchOptions {
  * The app depends only on this interface, never on Camoufox directly.
  */
 export interface BrowserSession {
-  /** Navigate to a URL and wait for the page to settle. */
-  goto(url: string): Promise<void>;
+  /**
+   * Navigate to a URL, wait for it to settle (and any Cloudflare challenge to
+   * clear), and return the final landed URL — which differs from `url` when the
+   * site redirects (e.g. an expired session bounced to the sign-in host).
+   */
+  goto(url: string): Promise<string>;
 
   /** Seed cookies into the context to restore an imported session. */
   setCookies(cookies: Cookie[]): Promise<void>;

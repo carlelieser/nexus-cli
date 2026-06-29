@@ -4,6 +4,7 @@ import type { JsonRequest, NexusSite } from './NexusSite.js';
 
 const BASE = 'https://www.nexusmods.com';
 const GRAPHQL_URL = 'https://api-router.nexusmods.com/graphql';
+const SIGN_IN_HOST = 'users.nexusmods.com';
 
 // Collection members come from Nexus's GraphQL API (the page renders them
 // client-side, so they are absent from static HTML). We request only the
@@ -122,20 +123,15 @@ export class NexusWebAdapter implements NexusSite {
     return targets;
   }
 
-  looksLikeAuthWall(html: string): boolean {
-    const lower = html.toLowerCase();
-    // An *active* Cloudflare interstitial — NOT the `cdn-cgi/challenge-platform`
-    // script, which Cloudflare injects on every normal page (a logged-in page
-    // carries it too, so matching it would falsely wall a valid session). The
-    // interstitial is identified by the challenge options object or its
-    // running-challenge container.
-    const cloudflareChallenge =
-      lower.includes('cf_chl_opt') ||
-      lower.includes('cf-challenge') ||
-      lower.includes('id="challenge-running"');
-    const explicitSignInPrompt =
-      lower.includes('please log in') || lower.includes('sign in to your account');
-    return cloudflareChallenge || explicitSignInPrompt;
+  isAuthRedirect(landedUrl: string): boolean {
+    // An expired/invalid session is bounced to the sign-in host. Compare the
+    // host exactly (a substring match would also flag the main site's own
+    // `users.nexusmods.com`-less paths inconsistently).
+    try {
+      return new URL(landedUrl).host === SIGN_IN_HOST;
+    } catch {
+      return false;
+    }
   }
 }
 

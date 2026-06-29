@@ -37,13 +37,13 @@ export async function downloadMod(
 ): Promise<ModResult> {
   params.signal?.throwIfAborted();
   const url = deps.site.modFilesUrl(params.game, params.modId);
-  await session.goto(url);
-  const html = await session.html();
+  const landed = await session.goto(url);
 
-  if (deps.site.looksLikeAuthWall(html)) {
+  if (deps.site.isAuthRedirect(landed)) {
     throw new AuthError('session expired or not authenticated');
   }
 
+  const html = await session.html();
   const all = deps.site.resolveDownloadLinks(html);
   const main = all.filter((t) => t.category === 'main');
   if (main.length === 0) {

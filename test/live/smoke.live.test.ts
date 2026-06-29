@@ -24,9 +24,9 @@ describe('live smoke', () => {
       const session = await restoreSession(deps, false);
       try {
         // SkyUI (skyrimspecialedition mod 12604) — a stable, long-lived mod.
-        await session.goto(deps.site.modFilesUrl('skyrimspecialedition', 12604));
+        const landed = await session.goto(deps.site.modFilesUrl('skyrimspecialedition', 12604));
+        expect(deps.site.isAuthRedirect(landed)).toBe(false);
         const html = await session.html();
-        expect(deps.site.looksLikeAuthWall(html)).toBe(false);
         const main = deps.site.resolveDownloadLinks(html).filter((t) => t.category === 'main');
         expect(main.length).toBeGreaterThan(0);
       } finally {

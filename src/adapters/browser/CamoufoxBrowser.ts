@@ -59,8 +59,9 @@ class CamoufoxSession implements BrowserSession {
     private readonly userDataDir: string,
   ) {}
 
-  async goto(url: string): Promise<void> {
+  async goto(url: string): Promise<string> {
     await this.navigate(url);
+    return this.page.url();
   }
 
   /**

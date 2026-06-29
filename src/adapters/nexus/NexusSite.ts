@@ -35,6 +35,10 @@ export interface NexusSite {
    */
   resolveDownloadLinks(html: string): DownloadTarget[];
 
-  /** Heuristic: does this HTML indicate we were bounced to login / blocked? */
-  looksLikeAuthWall(html: string): boolean;
+  /**
+   * Whether a landed URL means the session was bounced to Nexus's sign-in host
+   * (i.e. the cookies no longer authenticate us). A URL fact, not a guess from
+   * page markup.
+   */
+  isAuthRedirect(landedUrl: string): boolean;
 }

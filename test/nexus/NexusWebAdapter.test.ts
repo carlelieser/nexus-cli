@@ -117,22 +117,18 @@ describe('resolveDownloadLinks', () => {
   });
 });
 
-describe('looksLikeAuthWall', () => {
-  it('detects a cloudflare / login interstitial', () => {
-    expect(site.looksLikeAuthWall(fixture('authwall.html'))).toBe(true);
+describe('isAuthRedirect', () => {
+  it('is true when bounced to the sign-in host', () => {
+    expect(site.isAuthRedirect('https://users.nexusmods.com/auth/sign_in')).toBe(true);
   });
 
-  it('returns false for a normal page', () => {
-    expect(site.looksLikeAuthWall(fixture('mod-files.html'))).toBe(false);
+  it('is false for a normal mod files URL on the main host', () => {
+    expect(
+      site.isAuthRedirect('https://www.nexusmods.com/skyrimspecialedition/mods/100?tab=files'),
+    ).toBe(false);
   });
 
-  it('does not treat the always-present challenge-platform script as a wall', () => {
-    // Cloudflare injects this script on every normal page, including a fully
-    // logged-in one — matching it would falsely wall a valid session.
-    const loggedInPage =
-      '<html><head><title>Preferences - Nexus Mods</title></head><body>' +
-      '<script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script>' +
-      '</body></html>';
-    expect(site.looksLikeAuthWall(loggedInPage)).toBe(false);
+  it('is false for a malformed URL', () => {
+    expect(site.isAuthRedirect('not a url')).toBe(false);
   });
 });
