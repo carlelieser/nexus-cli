@@ -35,6 +35,11 @@ function isChallenge(response: NavResponse): boolean {
   return response?.headers()['cf-mitigated'] === 'challenge';
 }
 
+/** Whether an error is Playwright's "execution context destroyed" mid-navigation. */
+function isContextDestroyed(e: unknown): boolean {
+  return e instanceof Error && /execution context was destroyed/i.test(e.message);
+}
+
 /** Camoufox-backed implementation of the Browser interface. */
 export class CamoufoxBrowser implements Browser {
   async launch(opts: LaunchOptions): Promise<BrowserSession> {
@@ -156,19 +161,32 @@ class CamoufoxSession implements BrowserSession {
   ): Promise<unknown> {
     // Run fetch INSIDE the page so cookies + origin (nexusmods.com) apply —
     // required for the GraphQL endpoint to accept the request.
-    return this.page.evaluate(
-      async ({ url, body, headers }) => {
-        const res = await fetch(url, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json', ...headers },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-        return res.json() as Promise<unknown>;
-      },
-      { url, body, headers },
-    );
+    //
+    // The page may still be settling a client-side redirect from the preceding
+    // navigation (e.g. account-page warm-up), which destroys the execution
+    // context mid-evaluate. Wait for the DOM to be ready and retry once.
+    for (let attempt = 0; ; attempt++) {
+      await this.page
+        .waitForLoadState('domcontentloaded', { timeout: 10_000 })
+        .catch(() => undefined);
+      try {
+        return await this.page.evaluate(
+          async ({ url, body, headers }) => {
+            const res = await fetch(url, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json', ...headers },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
+            return res.json() as Promise<unknown>;
+          },
+          { url, body, headers },
+        );
+      } catch (e) {
+        if (attempt >= 2 || !isContextDestroyed(e)) throw e;
+      }
+    }
   }
 
   async resolveUsername(): Promise<string | null> {
