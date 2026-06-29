@@ -16,6 +16,13 @@ const NEXUS_DOMAIN = '.nexusmods.com';
 /** How long to wait for Camoufox to auto-solve a Cloudflare challenge. */
 const CHALLENGE_TIMEOUT_MS = 25_000;
 
+/**
+ * Fallback cap for the GenerateDownloadUrl resolver POST. A real success or
+ * failure response normally arrives in seconds; this only bounds the case where
+ * the click never fired the request at all.
+ */
+const RESOLVE_TIMEOUT_MS = 60_000;
+
 /** `page.goto`/`waitForNavigation` yield a Response, or null for same-document nav. */
 type NavResponse = Response | null;
 
@@ -39,7 +46,6 @@ export class CamoufoxBrowser implements Browser {
     const context = await Camoufox({
       headless: !opts.headful,
       user_data_dir: userDataDir,
-      os: 'macos',
       humanize: true,
       // Pin locale to match the imported session's origin. geoip is left OFF:
       // when it resolved to a different region than the session cookies, the
@@ -192,18 +198,22 @@ class CamoufoxSession implements BrowserSession {
       const slowButton = this.page.getByRole('button', { name: /slow download/i });
       await slowButton.waitFor({ state: 'visible', timeout: 30_000 });
 
-      const respPromise = this.page.waitForResponse(
-        (r) =>
-          /GenerateDownloadUrl/i.test(r.url()) &&
-          r.status() === 200 &&
-          /json/i.test(r.headers()['content-type'] ?? ''),
-        { timeout: 120_000 },
-      );
+      // Wait for the resolver POST regardless of status. Matching only 200s
+      // meant a failed resolve never matched and we hung the full timeout; the
+      // failure response is the signal, so inspect it instead of the page.
+      const respPromise = this.page.waitForResponse((r) => /GenerateDownloadUrl/i.test(r.url()), {
+        timeout: RESOLVE_TIMEOUT_MS,
+      });
       // We don't want the native download — cancel it; we stream the URL.
       this.page.once('download', (d) => void d.cancel().catch(() => undefined));
       await slowButton.click();
 
       const resp = await respPromise;
+      if (!resp.ok()) {
+        // e.g. Nexus's "download link could not be retrieved, try again later".
+        // Retryable — surfaced as NetworkError so withRetry backs off and retries.
+        throw new NetworkError(`download resolver returned HTTP ${resp.status()}`);
+      }
       const cdnUrl = ((await resp.json()) as { url?: string }).url;
       if (!cdnUrl) throw new NetworkError('resolver returned no download URL');
 
