@@ -11,9 +11,28 @@ subscription.
 
 ## Install
 
+macOS / Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/carlelieser/nexus-cli/main/scripts/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/carlelieser/nexus-cli/main/scripts/install.ps1 | iex
+```
+
+Node.JS:
+
 ```sh
 npm install -g @carlelieser/nexus-cli
 ```
+
+### Manual
+
+[latest release](https://github.com/carlelieser/nexus-cli/releases/latest):
+`nexus-macos-arm64`, `nexus-macos-x64`, `nexus-linux-x64`, or `nexus-win-x64.exe`.
 
 ## Usage
 
@@ -35,7 +54,7 @@ Download an entire collection:
 nexus download https://www.nexusmods.com/games/skyrimspecialedition/collections/llafgc
 ```
 
-Hand the download off to your mod manager.
+Hand the download off to your mod manager:
 
 ```sh
 nexus download https://www.nexusmods.com/skyrimspecialedition/mods/12604 --nmm

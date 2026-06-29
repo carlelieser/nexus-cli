@@ -1,3 +1,3 @@
 import { run } from './run.js';
 
-await run();
+void run();
