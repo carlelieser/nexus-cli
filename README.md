@@ -1,6 +1,7 @@
-# nexus-cli
+# Nexus CLI
 
-Download Nexus Mods from the command line on a free account.
+Enables automated downloads of individual mods and collections from [Nexus](https://nexusmods.com) without a premium
+subscription.
 
 ## Install
 
@@ -8,23 +9,21 @@ Download Nexus Mods from the command line on a free account.
 npm install -g @carlelieser/nexus-cli
 ```
 
-Requires Node.js 20+.
-
 ## Usage
 
-Import your logged-in session from your browser (once):
+Log in to [Nexus](https://users.nexusmods.com/) in your browser and run the following command to import your session.
 
 ```sh
 nexus import --from chrome
 ```
 
-Download a mod:
+Download an individual mod:
 
 ```sh
 nexus download https://www.nexusmods.com/skyrimspecialedition/mods/12604
 ```
 
-Download a collection:
+Download an entire collection:
 
 ```sh
 nexus download https://www.nexusmods.com/games/skyrimspecialedition/collections/abc123
