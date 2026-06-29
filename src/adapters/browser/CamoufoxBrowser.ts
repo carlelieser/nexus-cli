@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { Camoufox } from 'camoufox-js';
-import type { BrowserContext, Page } from 'playwright-core';
+import type { BrowserContext, Page, Response } from 'playwright-core';
 
 import { NetworkError } from '@core/errors.js';
 import type { Cookie } from '@core/types.js';
@@ -12,6 +12,21 @@ import type { Browser, BrowserSession, LaunchOptions, ResolvedDownload } from '.
 const ACCOUNT_URL = 'https://www.nexusmods.com/users/myaccount';
 const SIGN_IN_HOST = 'users.nexusmods.com';
 const NEXUS_DOMAIN = '.nexusmods.com';
+
+/** How long to wait for Camoufox to auto-solve a Cloudflare challenge. */
+const CHALLENGE_TIMEOUT_MS = 25_000;
+
+/** `page.goto`/`waitForNavigation` yield a Response, or null for same-document nav. */
+type NavResponse = Response | null;
+
+/**
+ * Whether a navigation response is a Cloudflare challenge. Cloudflare sets
+ * `cf-mitigated: challenge` on the interstitial response and omits it on the
+ * real page — a deterministic protocol signal, so we never scrape page markup.
+ */
+function isChallenge(response: NavResponse): boolean {
+  return response?.headers()['cf-mitigated'] === 'challenge';
+}
 
 /** Camoufox-backed implementation of the Browser interface. */
 export class CamoufoxBrowser implements Browser {
@@ -45,51 +60,43 @@ class CamoufoxSession implements BrowserSession {
   ) {}
 
   async goto(url: string): Promise<void> {
-    try {
-      // `commit` resolves as soon as the response starts — we don't block on a
-      // heavy page's trailing resources. Readiness is decided by settleChallenge.
-      await this.page.goto(url, { waitUntil: 'commit' });
-    } catch (e) {
-      throw new NetworkError(`failed to load ${url}`, { cause: e });
-    }
-    await this.settleChallenge();
+    await this.navigate(url);
   }
 
   /**
-   * Wait until the page is usable. Two cases:
-   *  - No Cloudflare challenge: returns as soon as the document has a body
-   *    (typically the first poll — no artificial delay).
-   *  - Challenge present: Camoufox clears the non-interactive "just a moment"
-   *    interstitial on its own after a few seconds; we wait for the
-   *    challenge-platform markers to disappear before callers scrape.
-   * Either way it gives up after `timeoutMs` and lets the caller proceed.
+   * Navigate to `url` and, if Cloudflare intercepts with a challenge, wait for
+   * Camoufox to auto-solve it. Returns the response for the real page.
+   *
+   * A challenge is identified by the `cf-mitigated: challenge` response header —
+   * a protocol signal, not page markup. When it's absent the response is the
+   * real page and we return at once; when present, Camoufox's auto-solve fires
+   * its own navigation to the real page, which we wait for.
    */
-  private async settleChallenge(timeoutMs = 25_000): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const state = await this.page
-        .evaluate(() => {
-          const html = document.documentElement.outerHTML.toLowerCase();
-          // NB: do NOT key off `cdn-cgi/challenge-platform` — that script tag is
-          // injected by Cloudflare on every normal page, so it is present on a
-          // fully logged-in page and would make us wait out the whole timeout.
-          // An *active* interstitial is identified by the challenge options
-          // object, the running-challenge element, or the "just a moment" title.
-          const onChallenge =
-            html.includes('cf_chl_opt') ||
-            !!document.getElementById('challenge-running') ||
-            document.title.toLowerCase().includes('just a moment');
-          // `interactive` means the full document has been parsed (static HTML,
-          // incl. the files-page rows, is present) — without waiting on the
-          // trailing subresources that `domcontentloaded` blocks on.
-          const parsed = document.readyState !== 'loading';
-          return { onChallenge, parsed };
-        })
-        .catch(() => ({ onChallenge: false, parsed: true }));
-      // Ready when there's no challenge and the document has been parsed.
-      if (!state.onChallenge && state.parsed) return;
-      await this.page.waitForTimeout(500);
+  private async navigate(url: string): Promise<NavResponse> {
+    let response: NavResponse;
+    try {
+      // `commit` resolves as soon as the response headers arrive — we don't
+      // block on a heavy page's trailing resources.
+      response = await this.page.goto(url, { waitUntil: 'commit' });
+    } catch (e) {
+      throw new NetworkError(`failed to load ${url}`, { cause: e });
     }
+
+    const deadline = Date.now() + CHALLENGE_TIMEOUT_MS;
+    while (isChallenge(response) && Date.now() < deadline) {
+      response = await this.page
+        .waitForNavigation({ waitUntil: 'commit', timeout: deadline - Date.now() })
+        .catch(() => response);
+    }
+
+    // Let the document finish (incl. any client-side redirect like
+    // myaccount → settings) before returning, so a subsequent navigation does
+    // not abort an in-flight one (NS_BINDING_ABORTED). Best-effort: a heavy
+    // page that never fully idles must not block the caller.
+    await this.page
+      .waitForLoadState('domcontentloaded', { timeout: 10_000 })
+      .catch(() => undefined);
+    return response;
   }
 
   async setCookies(cookies: Cookie[]): Promise<void> {
@@ -109,11 +116,10 @@ class CamoufoxSession implements BrowserSession {
 
   async isLoggedIn(): Promise<boolean> {
     try {
-      await this.page.goto(ACCOUNT_URL, { waitUntil: 'commit' });
+      await this.navigate(ACCOUNT_URL);
     } catch {
       return false;
     }
-    await this.settleChallenge();
     // The account URL redirects to /settings or /users/... when authenticated,
     // and to the sign-in host when not.
     if (new URL(this.page.url()).host === SIGN_IN_HOST) return false;
@@ -159,8 +165,7 @@ class CamoufoxSession implements BrowserSession {
   }
 
   async resolveUsername(): Promise<string | null> {
-    await this.page.goto(ACCOUNT_URL, { waitUntil: 'commit' }).catch(() => undefined);
-    await this.settleChallenge();
+    await this.navigate(ACCOUNT_URL).catch(() => undefined);
     return this.page
       .evaluate(() => {
         const el =
@@ -181,8 +186,7 @@ class CamoufoxSession implements BrowserSession {
       // to GenerateDownloadUrl that returns the signed CDN URL. We drive that
       // button (the trusted path that clears Cloudflare) and capture the
       // resolver's JSON response — then Node streams the URL itself.
-      await this.page.goto(filePageUrl, { waitUntil: 'commit' });
-      await this.settleChallenge();
+      await this.navigate(filePageUrl);
 
       const slowButton = this.page.getByRole('button', { name: /slow download/i });
       await slowButton.waitFor({ state: 'visible', timeout: 30_000 });
