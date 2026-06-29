@@ -3,7 +3,7 @@
 Enables automated downloads of individual mods and collections from [Nexus](https://nexusmods.com) without a premium
 subscription.
 
-![nexus downloading a collection](docs/demo.png)
+![nexus downloading a collection](https://raw.githubusercontent.com/carlelieser/nexus-cli/main/docs/demo.png)
 
 > **Note:** this does not unlock premium download speeds. It uses the same free
 > "slow download" the website gives you — it just saves you from clicking
