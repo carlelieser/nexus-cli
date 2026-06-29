@@ -11,16 +11,23 @@ NAME="nexus-${os}-${arch}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
+# Run the bundled launcher. On Windows the launcher is a .cmd, which Git Bash
+# can't exec directly — invoke it through cmd. Extract with the same tool that
+# created the archive (Expand-Archive), since unzip mangles the backslash paths
+# PowerShell's Compress-Archive writes.
 if [ "$os" = "win" ]; then
-  unzip -q "binaries/${NAME}.zip" -d "$work"
-  bin="$work/${NAME}/nexus.cmd"
+  powershell -NoProfile -Command \
+    "Expand-Archive -Path 'binaries/${NAME}.zip' -DestinationPath '$work' -Force"
+  launcher="$work/${NAME}/nexus.cmd"
+  run() { MSYS_NO_PATHCONV=1 cmd //c "$(cygpath -w "$launcher")" "$@"; }
 else
   tar -xzf "binaries/${NAME}.tar.gz" -C "$work"
-  bin="$work/${NAME}/nexus"
+  launcher="$work/${NAME}/nexus"
+  run() { "$launcher" "$@"; }
 fi
 
 echo "1/2 --help"
-"$bin" --help >/dev/null
+run --help
 
 # Drive `import --file` with a fake-but-non-empty cookie file. The file source
 # always succeeds (unlike `--from chrome`, which bails before launch on a CI
@@ -33,9 +40,12 @@ cookies="$work/cookies.json"
 cat > "$cookies" <<'JSON'
 [{ "name": "nexusmods_session", "value": "smoke", "domain": ".nexusmods.com", "path": "/" }]
 JSON
+# The launcher runs through cmd on Windows, so pass it a native path.
+cookies_arg="$cookies"
+[ "$os" = "win" ] && cookies_arg="$(cygpath -w "$cookies")"
 
 echo "2/2 browser launch path"
-out="$("$bin" import --file "$cookies" 2>&1 || true)"
+out="$(run import --file "$cookies_arg" 2>&1 || true)"
 echo "$out" | sed 's/^/    /'
 
 if echo "$out" | grep -qiE "DYNAMIC_IMPORT_CALLBACK_MISSING|was not included into executable|Cannot find module|NODE_MODULE_VERSION|ERR_DLOPEN|invalid ELF|symbol not found"; then
