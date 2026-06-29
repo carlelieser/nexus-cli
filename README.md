@@ -32,10 +32,7 @@ npm install -g @carlelieser/nexus-cli
 ### Manual
 
 Download the archive for your platform from the
-[latest release](https://github.com/carlelieser/nexus-cli/releases/latest)
-(`nexus-macos-arm64`, `nexus-macos-x64`, `nexus-linux-x64`, or `nexus-win-x64`),
-extract it, and run the `nexus` launcher inside. Each archive is self-contained —
-it bundles its own Node runtime, so nothing else is required.
+[latest release](https://github.com/carlelieser/nexus-cli/releases/latest).
 
 ## Usage
 
