@@ -3,6 +3,27 @@
   "version": "0.1.4",
   "description": "Unofficial CLI for non-premium Nexus users.",
   "type": "module",
+  "author": "Carlos Santos <hello@carlelieser.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/carlelieser/nexus-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/carlelieser/nexus-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/carlelieser/nexus-cli/issues"
+  },
+  "keywords": [
+    "nexus",
+    "nexusmods",
+    "mods",
+    "mod-manager",
+    "skyrim",
+    "fallout",
+    "collections",
+    "downloader",
+    "cli"
+  ],
   "bin": {
     "nexus": "dist/cli/index.js"
   },
