@@ -5,7 +5,7 @@ Download Nexus Mods from the command line on a free account.
 ## Install
 
 ```sh
-npm install -g nexus-cli
+npm install -g @carlelieser/nexus-cli
 ```
 
 Requires Node.js 20+.
