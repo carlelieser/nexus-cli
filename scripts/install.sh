@@ -19,11 +19,15 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture: $(uname -m). Install via npm instead." >&2; exit 1 ;;
 esac
 
-# Only macOS ships an arm64 build; Linux is x64-only.
-if [ "$os" = "linux" ] && [ "$arch" = "arm64" ]; then
-  echo "No prebuilt Linux arm64 build. Install via npm instead." >&2
-  exit 1
-fi
+# Prebuilt archives exist only for these platforms (see the CI matrix). Anything
+# else (Intel Mac, Linux arm64) installs via npm.
+case "${os}-${arch}" in
+  macos-arm64 | linux-x64) ;;
+  *)
+    echo "No prebuilt build for ${os}-${arch}. Install via npm instead." >&2
+    exit 1
+    ;;
+esac
 
 name="nexus-${os}-${arch}"
 url="https://github.com/${REPO}/releases/latest/download/${name}.tar.gz"

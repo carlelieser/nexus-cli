@@ -23,7 +23,7 @@ Windows (PowerShell):
 irm https://raw.githubusercontent.com/carlelieser/nexus-cli/main/scripts/install.ps1 | iex
 ```
 
-Node.JS:
+Node/NPM:
 
 ```sh
 npm install -g @carlelieser/nexus-cli

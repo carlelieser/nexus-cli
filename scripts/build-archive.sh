@@ -37,9 +37,11 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/bin" "$STAGE/app" "$OUT_DIR" "${BUILD_DIR}/node"
 
 echo "Fetching ${node_url}"
+# `tar` extracts both .tar.gz and .zip (bsdtar on the Windows runners), so we
+# avoid `unzip`/`zip`, which Git Bash on windows-latest does not ship.
 if [ "$ext" = "zip" ]; then
   curl -fsSL "$node_url" -o "${BUILD_DIR}/node.zip"
-  unzip -q "${BUILD_DIR}/node.zip" -d "${BUILD_DIR}/node"
+  tar -xf "${BUILD_DIR}/node.zip" -C "${BUILD_DIR}/node"
   cp "${BUILD_DIR}/node/${node_pkg}/node.exe" "$STAGE/bin/node.exe"
 else
   curl -fsSL "$node_url" -o "${BUILD_DIR}/node.tgz"
@@ -72,7 +74,9 @@ fi
 
 echo "Archiving ${NAME}.${ext}"
 if [ "$ext" = "zip" ]; then
-  (cd "$BUILD_DIR" && zip -qr "../${OUT_DIR}/${NAME}.zip" "${NAME}")
+  # `zip` is absent in Git Bash; PowerShell's Compress-Archive is always present.
+  powershell -NoProfile -Command \
+    "Compress-Archive -Path '${BUILD_DIR}/${NAME}' -DestinationPath '${OUT_DIR}/${NAME}.zip' -Force"
 else
   tar -czf "${OUT_DIR}/${NAME}.tar.gz" -C "$BUILD_DIR" "${NAME}"
 fi
