@@ -22,18 +22,24 @@ fi
 echo "1/2 --help"
 "$bin" --help >/dev/null
 
-# `import --from <browser>` runs restoreSession → browser.launch(), which calls
-# Camoufox().launch() → sampleWebGL → openDatabase (the sqlite/native path).
-# We don't need a real session: we only need to get PAST the launch machinery
-# without an ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING / missing-.node crash.
-# A launch that proceeds to download a browser or fail on auth is a PASS;
-# a crash inside launchOptions/openDatabase is a FAIL.
+# Drive `import --file` with a fake-but-non-empty cookie file. The file source
+# always succeeds (unlike `--from chrome`, which bails before launch on a CI
+# runner with no Chrome installed), so importSession proceeds to validate ->
+# browser.launch() -> Camoufox().launch() -> sampleWebGL -> openDatabase: the
+# sqlite/native-addon path. The login check then fails on the fake cookies,
+# but that is AFTER the native addon has loaded. We only assert we got past the
+# launch machinery without an ABI / missing-.node / dynamic-import crash.
+cookies="$work/cookies.json"
+cat > "$cookies" <<'JSON'
+[{ "name": "nexusmods_session", "value": "smoke", "domain": ".nexusmods.com", "path": "/" }]
+JSON
+
 echo "2/2 browser launch path"
-out="$("$bin" import --from chrome 2>&1 || true)"
+out="$("$bin" import --file "$cookies" 2>&1 || true)"
 echo "$out" | sed 's/^/    /'
 
-if echo "$out" | grep -qiE "DYNAMIC_IMPORT_CALLBACK_MISSING|was not included into executable|Cannot find module.*\.node|ERR_DLOPEN"; then
-  echo "FAIL: archive crashed on the browser-launch path" >&2
+if echo "$out" | grep -qiE "DYNAMIC_IMPORT_CALLBACK_MISSING|was not included into executable|Cannot find module|NODE_MODULE_VERSION|ERR_DLOPEN|invalid ELF|symbol not found"; then
+  echo "FAIL: archive crashed on the browser-launch / native-addon path" >&2
   exit 1
 fi
 
