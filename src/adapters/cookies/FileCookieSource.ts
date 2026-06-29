@@ -5,9 +5,9 @@ import type { Cookie } from '@core/types.js';
 import type { CookieSource } from './CookieSource.js';
 
 /**
- * Reads cookies from a file exported by a browser extension, so users whose
- * Chrome cookies use app-bound (`v20`) encryption (which {@link ChromeCookieSource}
- * cannot decrypt) can still import a session.
+ * Reads cookies from a file exported by a browser extension — an alternative to
+ * reading the browser's store directly ({@link BrowserCookieSource}) for users
+ * who would rather export a file than grant cookie-store access.
  *
  * Auto-detects the two shapes such extensions emit:
  *  - a **JSON array** (Cookie-Editor / EditThisCookie style), or

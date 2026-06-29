@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 const external = [
+  '@mherod/get-cookie',
   'camoufox-js',
   'ora',
   'yargs',

@@ -10,57 +10,39 @@ does, including the free "slow download". No premium API key required.
 
 ## Install
 
-You don't need Node, git, or any developer tools. One command installs
-everything (the `nexus` program and the browser it drives).
-
-**macOS / Linux** — paste into a terminal:
+Requires [Node.js](https://nodejs.org) 20 or newer.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/carlelieser/nexus-cli/main/install.sh | sh
+npm install -g nexus-cli
 ```
-
-**Windows** — paste into PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/carlelieser/nexus-cli/main/install.ps1 | iex
-```
-
-The installer downloads the right build for your machine, puts `nexus` on your
-PATH, and fetches the bundled browser (~150 MB, once). When it finishes, open a
-**new** terminal window so PATH changes take effect.
-
-> Prefer to do it by hand, or building from source? See
-> [Manual install](#manual-install).
 
 ---
 
 ## First-time setup: give nexus your Nexus session
 
-`nexus` needs the cookies from a browser where you're **logged in to
-nexusmods.com**. The simplest, most reliable way is to export them to a file.
+`nexus` reads the cookies from a browser where you're **logged in to
+nexusmods.com** and saves them as a reusable session.
 
-1. **Install a cookie-export extension.** Use
-   **[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)**
-   (available for Chrome and Firefox). It runs entirely on your machine — nothing
-   is uploaded.
-2. **Go to <https://www.nexusmods.com>** and make sure you're signed in.
-3. **Click the extension icon**, then **Export** (cookies.txt format). Save the
-   file somewhere you can find it, e.g. your Downloads folder as
-   `nexus.cookies.txt`.
-4. **Import it:**
+```sh
+nexus import --from chrome
+```
 
-   ```sh
-   nexus import --file ~/Downloads/nexus.cookies.txt
-   ```
-
-   On Windows:
-
-   ```powershell
-   nexus import --file $HOME\Downloads\nexus.cookies.txt
-   ```
+Supported browsers: `chrome`, `brave`, `edge`, `opera`, `vivaldi`, `arc`,
+`firefox`, `safari`. On macOS this may prompt once for Keychain or Full Disk
+Access (Safari).
 
 You should see `✓ imported N cookie(s)`. You only do this once — the session is
 saved. Redo it if downloads start failing with an auth error (cookies expire).
+
+### Alternative: import from an exported cookie file
+
+If reading the browser directly doesn't work for you, export the cookies with a
+browser extension such as **[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)**
+(while signed in to nexusmods.com), then:
+
+```sh
+nexus import --file ~/Downloads/nexus.cookies.txt
+```
 
 ---
 
@@ -94,12 +76,12 @@ Press **Ctrl+C** any time to stop; the current file is cleaned up.
 
 ## Commands
 
-| Command                      | Purpose                                                                             |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| `nexus setup`                | Download the bundled browser. Run by the installer; re-run if it ever goes missing. |
-| `nexus import --file <path>` | Import your logged-in session from an exported cookie file.                         |
-| `nexus download <url>`       | Download a mod or collection.                                                       |
-| `nexus logout`               | Clear the saved session.                                                            |
+| Command                         | Purpose                                                |
+| ------------------------------- | ------------------------------------------------------ |
+| `nexus import --from <browser>` | Read your logged-in session from an installed browser. |
+| `nexus import --file <path>`    | Import your session from an exported cookie file.      |
+| `nexus download <url>`          | Download a mod or collection.                          |
+| `nexus logout`                  | Clear the saved session.                               |
 
 Run `nexus <command> --help` for all options.
 
@@ -107,24 +89,16 @@ Run `nexus <command> --help` for all options.
 
 ## Troubleshooting
 
-**`nexus: command not found` right after installing** — open a new terminal so
-the updated PATH is loaded. If it persists, the installer prints the exact line
-to add to your shell profile.
+**Downloads fail with an auth error** — your cookies expired. Re-run
+`nexus import --from <browser>` (or re-export and `nexus import --file …`).
 
-**Downloads fail with an auth error** — your cookies expired. Re-export them
-(steps above) and run `nexus import --file …` again.
-
-**"browser not found" / setup didn't finish** — run `nexus setup` to (re)fetch
-the browser.
-
-**Importing from `nexus import` (without `--file`) doesn't work** — reading
-cookies straight out of Chrome only works on macOS and breaks on recent Chrome
-versions that encrypt them. The `--file` export above is the supported path on
-every OS.
+**`nexus import --from <browser>` reads no cookies** — make sure you're logged
+in to nexusmods.com in that browser, and that the browser is closed if it locks
+its cookie database. Otherwise use the `--file` path above.
 
 ---
 
-## Manual install
+## From source
 
 Requires Node 20+ and a clone of this repo.
 
@@ -133,14 +107,7 @@ git clone https://github.com/carlelieser/nexus-cli
 cd nexus-cli
 npm install
 npm run build
-node ./dist/cli/index.js setup     # fetch the browser
-npm link                           # optional: put `nexus` on PATH
-```
-
-To build the standalone binaries yourself (requires [Bun](https://bun.sh)):
-
-```sh
-npm run build:binaries             # outputs to ./release
+npm link            # optional: put `nexus` on PATH
 ```
 
 ---

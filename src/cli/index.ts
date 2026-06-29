@@ -4,7 +4,6 @@ import { hideBin } from 'yargs/helpers';
 import { downloadCommand } from './commands/download.js';
 import { importCommand } from './commands/import.js';
 import { logoutCommand } from './commands/logout.js';
-import { setupCommand } from './commands/setup.js';
 
 await yargs(hideBin(process.argv))
   .scriptName('nexus')
@@ -15,7 +14,6 @@ await yargs(hideBin(process.argv))
     describe: 'Print full stack traces on error',
     global: true,
   })
-  .command(setupCommand)
   .command(importCommand)
   .command(logoutCommand)
   .command(downloadCommand)

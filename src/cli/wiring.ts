@@ -1,5 +1,5 @@
 import { CamoufoxBrowser } from '@adapters/browser/CamoufoxBrowser.js';
-import { ChromeCookieSource } from '@adapters/cookies/ChromeCookieSource.js';
+import { BrowserCookieSource } from '@adapters/cookies/BrowserCookieSource.js';
 import type { CookieSource } from '@adapters/cookies/CookieSource.js';
 import { FileCookieSource } from '@adapters/cookies/FileCookieSource.js';
 import { BrowserDownloader } from '@adapters/download/BrowserDownloader.js';
@@ -26,12 +26,7 @@ export const NEXUS_COOKIE_DOMAIN = 'nexusmods.com';
 
 /** Resolve a cookie source by browser name. */
 export function cookieSourceFor(browser: string): CookieSource {
-  switch (browser.toLowerCase()) {
-    case 'chrome':
-      return new ChromeCookieSource();
-    default:
-      throw new Error(`unsupported browser '${browser}' (supported: chrome)`);
-  }
+  return new BrowserCookieSource(browser);
 }
 
 /** Resolve a cookie source from an exported cookie file (--file). */

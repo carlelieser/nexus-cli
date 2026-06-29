@@ -19,7 +19,8 @@ export const importCommand: CommandModule = {
       .option('from', {
         type: 'string',
         default: 'chrome',
-        describe: 'Browser to import cookies from (chrome)',
+        describe:
+          'Browser to import cookies from (chrome, brave, edge, opera, vivaldi, arc, firefox, safari)',
       })
       .option('file', {
         type: 'string',
