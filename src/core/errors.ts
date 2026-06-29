@@ -36,6 +36,19 @@ export class ThrottleError extends NexusError {
   readonly kind = 'throttle';
 }
 
+/** The run was cancelled by the user (Ctrl+C). Maps to exit code 130. */
+export class CancelError extends NexusError {
+  readonly kind = 'cancel';
+}
+
+/**
+ * Whether an error represents user cancellation — either our own
+ * {@link CancelError} or the `AbortError` a DOMException-style abort throws.
+ */
+export function isCancel(e: unknown): boolean {
+  return e instanceof CancelError || (e instanceof Error && e.name === 'AbortError');
+}
+
 export function isNexusError(e: unknown): e is NexusError {
   return e instanceof NexusError;
 }

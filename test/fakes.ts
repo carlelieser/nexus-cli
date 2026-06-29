@@ -99,8 +99,18 @@ export class FakeCookieSource implements CookieSource {
 /** Records fetches; can be told to fail for specific file ids. */
 export class FakeDownloader implements Downloader {
   fetched: DownloadTarget[] = [];
+  /** Optional hook run at the start of each fetch (e.g. to trigger an abort). */
+  onFetch?: (target: DownloadTarget) => void;
   constructor(private readonly failFileIds: Set<number> = new Set()) {}
-  async fetch(target: DownloadTarget, outDir: string): Promise<string> {
+  async fetch(
+    target: DownloadTarget,
+    outDir: string,
+    _session: BrowserSession,
+    _onProgress?: unknown,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    this.onFetch?.(target);
+    signal?.throwIfAborted();
     if (this.failFileIds.has(target.fileId)) {
       throw new Error(`429 too many requests for file ${target.fileId}`);
     }

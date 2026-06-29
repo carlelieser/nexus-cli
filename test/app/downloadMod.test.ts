@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { downloadMod } from '@app/downloadMod.js';
 import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
-import { AuthError } from '@core/errors.js';
+import { AuthError, isCancel } from '@core/errors.js';
 import { FakeDownloader, FakeSession, noSleep } from '../fakes.js';
 
 const fixture = (name: string): string =>
@@ -67,5 +67,20 @@ describe('downloadMod', () => {
     await expect(
       downloadMod({ site, downloader }, sessionFor(fixture('mod-files.html')), baseParams),
     ).rejects.toThrow();
+  });
+
+  it('cancels mid-mod and does not retry the aborted file', async () => {
+    const downloader = new FakeDownloader();
+    const controller = new AbortController();
+    // Abort when the first file starts; withRetry must not retry the abort.
+    downloader.onFetch = () => controller.abort();
+
+    await expect(
+      downloadMod({ site, downloader }, sessionFor(fixture('mod-files.html')), {
+        ...baseParams,
+        signal: controller.signal,
+      }),
+    ).rejects.toSatisfy(isCancel);
+    expect(downloader.fetched).toEqual([]);
   });
 });

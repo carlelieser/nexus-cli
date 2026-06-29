@@ -21,6 +21,8 @@ export interface DownloadModParams {
   sleep?: (ms: number) => Promise<void>;
   /** Per-file byte progress callback. */
   onFileProgress?: (p: DownloadProgress) => void;
+  /** Cancels the run (Ctrl+C) between and during file downloads. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -33,6 +35,7 @@ export async function downloadMod(
   session: BrowserSession,
   params: DownloadModParams,
 ): Promise<ModResult> {
+  params.signal?.throwIfAborted();
   const url = deps.site.modFilesUrl(params.game, params.modId);
   await session.goto(url);
   const html = await session.html();
@@ -57,12 +60,15 @@ export async function downloadMod(
 
   const files: string[] = [];
   for (const target of main) {
+    params.signal?.throwIfAborted();
     const path = await withRetry(
-      () => deps.downloader.fetch(target, params.outDir, session, params.onFileProgress),
+      () =>
+        deps.downloader.fetch(target, params.outDir, session, params.onFileProgress, params.signal),
       {
         attempts: params.retryAttempts,
         baseDelayMs: params.retryBaseDelayMs,
         ...(params.sleep ? { sleep: params.sleep } : {}),
+        ...(params.signal ? { signal: params.signal } : {}),
       },
     );
     files.push(path);

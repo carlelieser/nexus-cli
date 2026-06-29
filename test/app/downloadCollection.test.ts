@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { downloadCollection } from '@app/downloadCollection.js';
 import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
+import { isCancel } from '@core/errors.js';
 import { FakeDownloader, FakeSession, noSleep } from '../fakes.js';
 
 const site = new NexusWebAdapter();
@@ -80,5 +81,38 @@ describe('downloadCollection', () => {
     expect(report.succeeded).toBe(1);
     expect(report.failed).toBe(1);
     expect(report.results.find((r) => !r.ok)?.throttled).toBe(true);
+  });
+
+  it('throws a cancellation without downloading when already aborted', async () => {
+    const downloader = new FakeDownloader();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      downloadCollection(
+        { site, downloader },
+        collectionSession([member(100, 4001, false), member(101, 4002, false)]),
+        { ...baseParams, signal: controller.signal },
+      ),
+    ).rejects.toSatisfy(isCancel);
+    expect(downloader.fetched).toEqual([]);
+  });
+
+  it('stops starting new members once aborted mid-batch', async () => {
+    const downloader = new FakeDownloader();
+    const controller = new AbortController();
+    // Abort as soon as the first file begins; the second must never start.
+    downloader.onFetch = () => controller.abort();
+
+    await expect(
+      downloadCollection(
+        { site, downloader },
+        collectionSession([member(100, 4001, false), member(101, 4002, false)]),
+        { ...baseParams, signal: controller.signal },
+      ),
+    ).rejects.toSatisfy(isCancel);
+    // The first file's fetch was aborted (throwIfAborted after onFetch), so
+    // nothing was recorded, and the second member never began.
+    expect(downloader.fetched).toEqual([]);
   });
 });

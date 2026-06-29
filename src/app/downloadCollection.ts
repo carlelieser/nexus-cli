@@ -1,6 +1,7 @@
 import type { BrowserSession } from '@adapters/browser/Browser.js';
 import type { Downloader, DownloadProgress } from '@adapters/download/Downloader.js';
 import type { NexusSite } from '@adapters/nexus/NexusSite.js';
+import { isCancel } from '@core/errors.js';
 import {
   type CollectionMember,
   type DownloadReport,
@@ -29,6 +30,11 @@ export interface DownloadCollectionParams {
   retryBaseDelayMs: number;
   /** Injected sleep, for deterministic tests. Defaults to real timers. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Cancels the run (Ctrl+C). Stops starting new members and aborts the
+   * in-flight download; surfaces as a CancelError from this function.
+   */
+  signal?: AbortSignal;
   /** Called once with the full member list after it is resolved. */
   onResolved?: (members: CollectionMember[]) => void;
   /** Called before a member starts downloading (for live progress). */
@@ -55,6 +61,7 @@ export async function downloadCollection(
 ): Promise<DownloadReport> {
   const sleep = params.sleep ?? defaultSleep;
 
+  params.signal?.throwIfAborted();
   const req = deps.site.collectionMembersQuery(params.game, params.ref);
   const json = await session.postJson(req.url, req.body, req.headers);
   const all = deps.site.parseCollectionMembers(json);
@@ -68,6 +75,10 @@ export async function downloadCollection(
 
   const results: ModResult[] = [];
   for (let i = 0; i < members.length; i++) {
+    // Cancellation stops *starting* new members; the in-flight download is
+    // aborted from inside runOne, which re-throws to break out of the loop.
+    params.signal?.throwIfAborted();
+
     const member = members[i]!;
     if (policy.currentDelayMs > 0) {
       await sleep(policy.currentDelayMs);
@@ -109,15 +120,19 @@ async function runOne(
 
   try {
     const path = await withRetry(
-      () => deps.downloader.fetch(target, params.outDir, session, params.onFileProgress),
+      () =>
+        deps.downloader.fetch(target, params.outDir, session, params.onFileProgress, params.signal),
       {
         attempts: params.retryAttempts,
         baseDelayMs: params.retryBaseDelayMs,
         ...(params.sleep ? { sleep: params.sleep } : {}),
+        ...(params.signal ? { signal: params.signal } : {}),
       },
     );
     return { modId: member.modId, ok: true, files: [path] };
   } catch (e) {
+    // A cancellation is not a per-member failure — let it abort the batch.
+    if (isCancel(e)) throw e;
     const message = e instanceof Error ? e.message : String(e);
     return {
       modId: member.modId,

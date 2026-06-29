@@ -1,4 +1,4 @@
-import { access, mkdir, rename } from 'node:fs/promises';
+import { access, mkdir, rename, rm } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -21,7 +21,9 @@ export class BrowserDownloader implements Downloader {
     outDir: string,
     session: BrowserSession,
     onProgress?: (p: DownloadProgress) => void,
+    signal?: AbortSignal,
   ): Promise<string> {
+    signal?.throwIfAborted();
     await mkdir(outDir, { recursive: true });
 
     const resolved = await session.resolveDownloadUrl(target.url);
@@ -39,8 +41,10 @@ export class BrowserDownloader implements Downloader {
           cookie: resolved.cookieHeader,
           'user-agent': resolved.userAgent,
         },
+        ...(signal ? { signal } : {}),
       });
     } catch (e) {
+      if (signal?.aborted) throw e; // propagate the AbortError untouched
       throw new NetworkError(`failed to fetch file ${target.fileId}`, { cause: e });
     }
     if (!res.ok || !res.body) {
@@ -56,8 +60,13 @@ export class BrowserDownloader implements Downloader {
     });
 
     try {
-      await pipeline(source, createWriteStream(partPath));
+      // `pipeline` with `signal` aborts both streams and rejects with an
+      // AbortError when the user cancels mid-transfer.
+      await pipeline(source, createWriteStream(partPath), signal ? { signal } : {});
     } catch (e) {
+      // Either way, the .part is incomplete — there is no resume — so remove it.
+      await rm(partPath, { force: true });
+      if (signal?.aborted) throw e; // propagate the AbortError untouched
       throw new DownloadError(`failed writing file ${target.fileId}`, { cause: e });
     }
 

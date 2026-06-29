@@ -6,7 +6,7 @@ import { downloadMod } from '@app/downloadMod.js';
 import { restoreSession } from '@app/restoreSession.js';
 import { defaultOutDir } from '@config/paths.js';
 import { basename } from 'node:path';
-import { AuthError } from '@core/errors.js';
+import { AuthError, CancelError, isCancel } from '@core/errors.js';
 import { type DownloadReport, type ModResult, summarize } from '@core/types.js';
 import { out } from '../output.js';
 import { buildDeps } from '../wiring.js';
@@ -71,11 +71,32 @@ export const downloadCommand: CommandModule = {
     // warm-up, then per-file progress. ora auto-disables on non-TTY.
     const spinner = ora({ text: 'Restoring session…' }).start();
 
+    // Ctrl+C: first press aborts gracefully (stop new work, abort the in-flight
+    // file, close the browser, print a summary); a second press hard-exits in
+    // case cleanup hangs. The handler is removed in `finally`.
+    const controller = new AbortController();
+    const onSigint = (): void => {
+      if (controller.signal.aborted) {
+        spinner.stop();
+        out.warn('forced quit');
+        process.exit(130);
+      }
+      controller.abort(new CancelError('cancelled by user'));
+      spinner.text = 'Cancelling… (press Ctrl+C again to force quit)';
+    };
+    process.on('SIGINT', onSigint);
+
     let session;
     try {
       session = await restoreSession(deps, argv.headful);
     } catch (e) {
       spinner.stop();
+      process.removeListener('SIGINT', onSigint);
+      if (isCancel(e) || controller.signal.aborted) {
+        out.warn('cancelled');
+        process.exitCode = 130;
+        return;
+      }
       out.error(e, argv.verbose);
       process.exitCode = e instanceof AuthError ? 2 : 1;
       return;
@@ -93,11 +114,22 @@ export const downloadCommand: CommandModule = {
     }, 1000);
     if (typeof ticker.unref === 'function') ticker.unref();
 
+    const signal = controller.signal;
     try {
       const report =
         argv.collection !== undefined
-          ? await runCollection(deps, session, argv, outDir, spinner, progress, global!, runStart)
-          : await runMod(deps, session, argv, outDir, spinner, progress, runStart);
+          ? await runCollection(
+              deps,
+              session,
+              argv,
+              outDir,
+              spinner,
+              progress,
+              global!,
+              runStart,
+              signal,
+            )
+          : await runMod(deps, session, argv, outDir, spinner, progress, runStart, signal);
 
       clearInterval(ticker);
       finish(spinner, report, argv['dry-run'], Date.now() - runStart);
@@ -105,9 +137,15 @@ export const downloadCommand: CommandModule = {
     } catch (e) {
       clearInterval(ticker);
       spinner.stop();
-      out.error(e, argv.verbose);
-      process.exitCode = e instanceof AuthError ? 2 : 1;
+      if (isCancel(e) || signal.aborted) {
+        out.warn('cancelled — partial downloads removed');
+        process.exitCode = 130;
+      } else {
+        out.error(e, argv.verbose);
+        process.exitCode = e instanceof AuthError ? 2 : 1;
+      }
     } finally {
+      process.removeListener('SIGINT', onSigint);
       await session.close();
     }
   },
@@ -121,6 +159,7 @@ async function runMod(
   spinner: Ora,
   progress: FileProgress,
   runStart: number,
+  signal: AbortSignal,
 ): Promise<DownloadReport> {
   const verb = argv['dry-run'] ? 'Resolving' : 'Downloading';
   progress.start(`${verb} mod ${argv.mod}`);
@@ -132,6 +171,7 @@ async function runMod(
     dryRun: argv['dry-run'],
     retryAttempts: RETRY_ATTEMPTS,
     retryBaseDelayMs: RETRY_BASE_DELAY_MS,
+    signal,
     onFileProgress: (p) => {
       progress.update(p.receivedBytes, p.totalBytes);
       spinner.text = composeStatus(progress, null, Date.now() - runStart);
@@ -150,6 +190,7 @@ async function runCollection(
   progress: FileProgress,
   global: GlobalProgress,
   runStart: number,
+  signal: AbortSignal,
 ): Promise<DownloadReport> {
   spinner.text = 'Resolving collection…';
   return downloadCollection(deps, session, {
@@ -161,6 +202,7 @@ async function runCollection(
     includeOptional: argv.optional,
     retryAttempts: RETRY_ATTEMPTS,
     retryBaseDelayMs: RETRY_BASE_DELAY_MS,
+    signal,
     // Once the full list is known, seed the global total and start its timer.
     onResolved: (members) => {
       global.setTotal(members);
