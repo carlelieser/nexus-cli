@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "build:binaries": "bash scripts/build-binaries.sh",
     "dev": "vite build --watch",
     "start": "node ./dist/cli/index.js",
     "test": "vitest run",
