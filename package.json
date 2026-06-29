@@ -4,7 +4,7 @@
   "description": "Unofficial CLI for non-premium Nexus users.",
   "type": "module",
   "bin": {
-    "nexus": "./dist/cli/index.js"
+    "nexus": "dist/cli/index.js"
   },
   "main": "./dist/cli/index.js",
   "files": [
