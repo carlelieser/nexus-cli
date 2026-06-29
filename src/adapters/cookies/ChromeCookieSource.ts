@@ -73,7 +73,7 @@ export class ChromeCookieSource implements CookieSource {
     if (cookies.length === 0 && undecryptable > 0) {
       throw new AuthError(
         'Chrome cookies use app-bound (v20) encryption that cannot be read by ' +
-          'this tool. Use a cookie-export extension and `nexus import --file` instead.',
+          'this tool. Import from a browser whose cookies are still v10-encrypted instead.',
       );
     }
     return cookies;

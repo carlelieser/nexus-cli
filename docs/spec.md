@@ -114,21 +114,22 @@ src/
 
 ### Download mechanics
 
-All file fetching runs **through the Camoufox browser context** rather than a separate HTTP client. The download use-case restores the saved session into a `BrowserSession` (via `setCookies`) and warms the context past Cloudflare by loading the account page.
+A file's signed CDN URL is **resolved through the Camoufox browser context** (so the session cookies and fingerprint clear Cloudflare), then the bytes are **streamed from Node** — the in-page `fetch` is blocked by CORS on the CDN host, but Node has no CORS restriction. The download use-case restores the saved session into a `BrowserSession` (via `setCookies`) and warms the context past Cloudflare by loading the account page.
 
 - **Resolving what to fetch.** For `--mod`, the files page is scraped for main file(s). For `--collection`, members come from the Nexus **GraphQL API** (`api-router.nexusmods.com/graphql`, operation `CollectionRevisionMods`): the collection page renders members client-side, so they are absent from static HTML. The request is executed _inside the page_ via `fetch` (so the session cookies and `nexusmods.com` origin apply); the response yields each pinned `(game, modId, fileId, optional)` tuple, so collection downloads target exact files without re-scraping per-mod files pages.
-- **Fetching a file (free "Slow download" flow).** For each file, navigate to its manual-download URL (`?tab=files&file_id=<id>`, **not** the `&nmm=1` mod-manager link) and click the _Slow download_ button. That button lives inside the `<mod-file-download>` web component's **open shadow root**, and its download URL is computed in JS on click — so there is no static URL to fetch; the click is required. Playwright's role/text selectors pierce open shadow roots, so the button is reachable.
+- **Resolving the signed URL (free "Slow download" flow).** For each file, navigate to its manual-download URL (`?tab=files&file_id=<id>`, **not** the `&nmm=1` mod-manager link) and click the _Slow download_ button. That button lives inside the `<mod-file-download>` web component's **open shadow root**, and clicking it fires a POST to Nexus's `GenerateDownloadUrl` resolver, whose JSON response carries the signed CDN URL. Playwright's role/text selectors pierce open shadow roots, so the button is reachable. The adapter waits for that response **regardless of status** (a failed resolve is the signal, not a hang), captures the URL, cancels the browser's own native download, and returns the URL plus the cookie header and user-agent for Node to fetch with (`ResolvedDownload`).
+- **Streaming to disk.** Node fetches the signed URL with the carried cookies/user-agent, writes to a `<name>.part` file, and renames it on completion; an already-complete file is skipped. The filename comes from the signed URL's path, falling back to the scraped file name + id. A cancel (Ctrl+C) tears down the stream and removes the partial.
 
-Carrying the session cookies _and_ the Camoufox fingerprint with every request is the most robust option against Cloudflare — at the cost of speed and limited parallelism. `--concurrency` defaults to a conservative `2`.
+Carrying the session cookies _and_ the Camoufox fingerprint through resolution is the most robust option against Cloudflare — at the cost of speed and limited parallelism. `--concurrency` defaults to a conservative `2`.
 
 ### Navigation strategy
 
-`goto` uses Playwright's `waitUntil: 'commit'` (resolves when the response starts) rather than `domcontentloaded`, then calls `settleChallenge()`, which polls until **(a)** no Cloudflare challenge markers are present and **(b)** the document is parsed (`readyState !== 'loading'`). This means:
+`goto` uses Playwright's `waitUntil: 'commit'` (resolves when the response headers arrive) rather than `domcontentloaded`, then inspects the navigation response. A Cloudflare challenge is identified by the **`cf-mitigated: challenge` response header** — a deterministic protocol signal, so the markup is never scraped. This means:
 
-- **No challenge** → returns on the first poll, no artificial delay.
-- **Challenge present** → waits (up to 25s) for Camoufox to clear the non-interactive "just a moment" interstitial.
+- **No challenge** → the response is the real page; return at once, no artificial delay.
+- **Challenge present** → wait (up to 25s) for Camoufox to auto-clear the non-interactive "just a moment" interstitial; its auto-solve fires its own navigation to the real page, which we wait for.
 
-Blocking on `domcontentloaded` for heavy pages (notably the account page) caused multi-second stalls; `commit` + a readiness poll avoids waiting on trailing subresources while still guaranteeing the parsed static HTML (e.g. files-page rows) is present before scraping.
+After settling, `goto` waits (best-effort, ≤10s) for `domcontentloaded` so a client-side redirect (e.g. `myaccount` → `settings`) finishes before the caller navigates again, then returns the **final landed URL** — which the app compares against the sign-in host to detect an expired session. Blocking on `domcontentloaded` for the initial navigation of heavy pages (notably the account page) caused multi-second stalls; `commit` + the header check avoids waiting on trailing subresources while still settling Cloudflare.
 
 ### Key interfaces (sketch)
 
@@ -137,14 +138,21 @@ interface Browser {
   launch(opts: { headful: boolean }): Promise<BrowserSession>;
 }
 interface BrowserSession {
-  goto(url: string): Promise<void>; // navigates and settles any Cloudflare interstitial
+  goto(url: string): Promise<string>; // navigates, settles Cloudflare, returns the landed URL
   setCookies(cookies: Cookie[]): Promise<void>; // seed an imported session
   isLoggedIn(): Promise<boolean>; // validate session (loads the account page)
   html(): Promise<string>; // current page HTML, for scraping
   postJson(url, body, headers?): Promise<unknown>; // authenticated in-page fetch (GraphQL)
   resolveUsername(): Promise<string | null>;
-  download(url: string, outPath: string): Promise<DownloadOutcome>; // drives the slow-download click
+  resolveDownloadUrl(filePageUrl: string): Promise<ResolvedDownload>; // drives the slow-download click → signed CDN URL
   close(): Promise<void>;
+}
+
+// A signed CDN URL plus the credentials Node needs to stream it.
+interface ResolvedDownload {
+  cdnUrl: string; // signed, single-use, short-lived
+  cookieHeader: string;
+  userAgent: string;
 }
 
 interface CookieSource {
@@ -158,8 +166,8 @@ interface NexusSite {
   collectionMembersQuery(game: string, ref: string): JsonRequest; // GraphQL request
   parseCollectionMembers(json: unknown): CollectionMember[]; // → {game, modId, fileId, optional}[]
   fileDownloadUrl(game: string, modId: number, fileId: number): string;
-  resolveDownloadLinks(html: string): DownloadTarget[];
-  looksLikeAuthWall(html: string): boolean;
+  parseDownloadTargets(html: string): DownloadTarget[];
+  isAuthRedirect(landedUrl: string): boolean; // landed on the sign-in host?
 }
 
 interface SessionStore {
@@ -169,9 +177,16 @@ interface SessionStore {
 }
 
 interface Downloader {
-  // Drives the authenticated browser context to fetch a file natively,
-  // so cookies and the Camoufox fingerprint travel with the request.
-  fetch(target: DownloadTarget, outDir: string, session: BrowserSession): Promise<string>;
+  // Resolves the file's signed CDN URL via the session, then streams it to disk
+  // from Node (the in-page fetch is CORS-blocked on the CDN host; Node is not).
+  // onProgress reports bytes; signal cancels mid-transfer.
+  fetch(
+    target: DownloadTarget,
+    outDir: string,
+    session: BrowserSession,
+    onProgress?: (p: DownloadProgress) => void,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 ```
 
@@ -179,7 +194,7 @@ interface Downloader {
 
 - **Files page** (`--mod`): each file is a `<dt id="file-expander-header-<id>" data-name=".." data-version="..">` row inside a category section. The category is the visible header (`Main files` / `Optional files` / `Old files` / `Miscellaneous`) or the section container id (`file-container-<cat>-files`). Only **main** files are downloaded. The per-file download links are rendered client-side and absent from static HTML, so the download URL is _constructed_ from the scraped file id rather than scraped.
 - **Collection** (`--collection`): the member list is **not** scraped from HTML — it comes from the GraphQL `CollectionRevisionMods` operation (slug = the collection ref), parsed from `data.collectionRevision.modFiles[]`. Each entry yields `fileId`, `optional`, and `file.mod.{modId, game.domainName}`.
-- **Auth/Cloudflare detection** (`looksLikeAuthWall`): keyed on the language-independent Cloudflare challenge markers (`cdn-cgi/challenge-platform`, `cf_chl_opt`) — **not** on the localized "just a moment" text, and **not** on the `.../auth` sign-out form that normal logged-in pages legitimately contain.
+- **Auth detection** (`isAuthRedirect`): an expired/invalid session is bounced to the sign-in host, so this is a **URL fact** — the landed URL's host equals `users.nexusmods.com` — not a guess from page markup. (Cloudflare challenge detection lives in the browser adapter, keyed on the `cf-mitigated` response header; see _Navigation strategy_.)
 
 ---
 
@@ -194,7 +209,7 @@ interface Downloader {
 
 ## 5. Error handling
 
-- All recoverable failures are surfaced as typed errors in `core/errors.ts` (`AuthError`, `ScrapeError`, `DownloadError`, `NetworkError`) and rendered as concise one-line messages by the CLI layer — no stack traces unless `--verbose`.
+- All recoverable failures are surfaced as typed errors in `core/errors.ts` (`AuthError`, `ScrapeError`, `DownloadError`, `NetworkError`, `ThrottleError`, `CancelError`) and rendered as concise one-line messages by the CLI layer — no stack traces unless `--verbose`. `CancelError` (Ctrl+C) maps to exit code 130; `ThrottleError` drives the adaptive backoff below.
 - Network/file fetches retry with backoff (default 3 attempts) before being counted as failed.
 - Collection downloads are **best-effort**: a single mod failure does not abort the batch; failures are collected and reported in a final summary, and the process exits `1`.
 - **Adaptive pacing**: collection downloads start with no inter-mod delay and the configured `--concurrency`. When the site signals throttling — HTTP 429, a Cloudflare challenge/interstitial, or repeated timeouts — the runner backs off: it inserts and progressively increases a delay between members and reduces effective concurrency, then slowly relaxes after a run of clean successes. This keeps small collections fast while staying polite on large ones. The backoff policy lives in the `app` layer so it is independent of the browser adapter.
@@ -241,11 +256,11 @@ interface Downloader {
 - **Auth**: **import cookies from the user's existing browser** (Chrome) instead of an in-CLI interactive login. Driving a fresh automated browser through Nexus's Cloudflare challenge was unreliable even with a human solving it; the user's real browser already holds a challenge-cleared session. (Superseded the original `nexus login` design.)
 - **Cookie decryption**: read Chrome's SQLite store directly and decrypt `v10` cookies via the macOS Keychain key. App-bound (`v20`) cookies are unsupported (clear failure); a file-import fallback is a possible future addition.
 - **Cloudflare**: pass it by replaying the imported session with a consistent Camoufox fingerprint — `locale` pinned to match the session, `geoip` off (a region mismatch caused hard challenges). The context is warmed on the account page before deep navigation, and `goto` waits out the non-interactive interstitial.
-- **Download mechanism**: fetch through the Camoufox browser context (cookies + fingerprint travel natively), not a separate HTTP client. Free downloads require clicking the **Slow download** button inside the `<mod-file-download>` web component's open shadow root — its URL is JS-computed, so the click is mandatory.
+- **Download mechanism**: resolve the file's signed CDN URL through the Camoufox context (cookies + fingerprint clear Cloudflare), then stream the bytes from Node (the in-page fetch is CORS-blocked on the CDN host). Free downloads require clicking the **Slow download** button inside the `<mod-file-download>` web component's open shadow root — the click fires the `GenerateDownloadUrl` resolver POST whose JSON response carries the signed URL, so the click is mandatory.
 - **Collections via GraphQL**: member files come from the `CollectionRevisionMods` GraphQL operation, not HTML scraping (the page renders members client-side). A collection pins **exact files** (`fileId` + `optional` flag), so we download those directly rather than re-deriving each mod's main file.
 - **Collection output**: raw archive files only — no installation/extraction/load-order. Required files by default; `--optional` widens to optional ones.
 - **Multi-file mods**: main file(s) only by default (for `--mod`).
-- **Navigation**: `goto` uses `waitUntil: 'commit'` + a readiness/challenge poll, not `domcontentloaded`, to avoid multi-second stalls on heavy pages while still settling Cloudflare.
+- **Navigation**: `goto` uses `waitUntil: 'commit'` + a `cf-mitigated` header check, not `domcontentloaded` markup scraping, to avoid multi-second stalls on heavy pages while still settling Cloudflare; it returns the landed URL so the app can detect a sign-in-host redirect.
 - **Rate limiting**: adaptive backoff — fast by default, slow down only when throttled/challenged.
 - **Testing**: HTML fixtures for scrapers + in-memory fakes for use-cases + opt-in live smoke tests.
 - **playwright-core**: pinned to `1.49.1` for Camoufox/Juggler compatibility (see §6).
