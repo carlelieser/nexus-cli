@@ -29,7 +29,7 @@ describe('FileSessionStore', () => {
     expect(await store.load()).toEqual(sample);
   });
 
-  it('writes with 600 permissions', async () => {
+  it.skipIf(process.platform === 'win32')('writes with 600 permissions', async () => {
     const path = join(mkdtempSync(join(tmpdir(), 'nexus-perm-')), 'session.json');
     const store = new FileSessionStore(path);
     await store.save(sample);

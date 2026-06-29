@@ -47,6 +47,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "postinstall": "node scripts/patch-get-cookie.mjs",
     "prepare": "husky || true",
     "prepublishOnly": "npm run build"
   },
@@ -58,6 +59,9 @@
     "*.{json,md,html}": [
       "prettier --write"
     ]
+  },
+  "optionalDependencies": {
+    "@primno/dpapi": "^1.1.2"
   },
   "dependencies": {
     "@mherod/get-cookie": "^4.4.3",
