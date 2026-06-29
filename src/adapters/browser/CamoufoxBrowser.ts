@@ -70,10 +70,15 @@ class CamoufoxSession implements BrowserSession {
       const state = await this.page
         .evaluate(() => {
           const html = document.documentElement.outerHTML.toLowerCase();
+          // NB: do NOT key off `cdn-cgi/challenge-platform` — that script tag is
+          // injected by Cloudflare on every normal page, so it is present on a
+          // fully logged-in page and would make us wait out the whole timeout.
+          // An *active* interstitial is identified by the challenge options
+          // object, the running-challenge element, or the "just a moment" title.
           const onChallenge =
-            html.includes('cdn-cgi/challenge-platform') ||
             html.includes('cf_chl_opt') ||
-            !!document.getElementById('challenge-running');
+            !!document.getElementById('challenge-running') ||
+            document.title.toLowerCase().includes('just a moment');
           // `interactive` means the full document has been parsed (static HTML,
           // incl. the files-page rows, is present) — without waiting on the
           // trailing subresources that `domcontentloaded` blocks on.

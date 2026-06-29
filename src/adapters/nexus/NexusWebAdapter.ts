@@ -124,14 +124,15 @@ export class NexusWebAdapter implements NexusSite {
 
   looksLikeAuthWall(html: string): boolean {
     const lower = html.toLowerCase();
-    // A Cloudflare interstitial — detected by its challenge script, which is
-    // language-independent (the visible "just a moment" text is localized, so
-    // we do NOT rely on it). The normal logged-in page does carry a
-    // `.../auth` sign-out form, so that string must NOT be treated as a wall.
+    // An *active* Cloudflare interstitial — NOT the `cdn-cgi/challenge-platform`
+    // script, which Cloudflare injects on every normal page (a logged-in page
+    // carries it too, so matching it would falsely wall a valid session). The
+    // interstitial is identified by the challenge options object or its
+    // running-challenge container.
     const cloudflareChallenge =
-      lower.includes('cdn-cgi/challenge-platform') ||
+      lower.includes('cf_chl_opt') ||
       lower.includes('cf-challenge') ||
-      lower.includes('cf_chl_opt');
+      lower.includes('id="challenge-running"');
     const explicitSignInPrompt =
       lower.includes('please log in') || lower.includes('sign in to your account');
     return cloudflareChallenge || explicitSignInPrompt;

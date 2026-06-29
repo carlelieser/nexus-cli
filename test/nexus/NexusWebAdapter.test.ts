@@ -125,4 +125,14 @@ describe('looksLikeAuthWall', () => {
   it('returns false for a normal page', () => {
     expect(site.looksLikeAuthWall(fixture('mod-files.html'))).toBe(false);
   });
+
+  it('does not treat the always-present challenge-platform script as a wall', () => {
+    // Cloudflare injects this script on every normal page, including a fully
+    // logged-in one — matching it would falsely wall a valid session.
+    const loggedInPage =
+      '<html><head><title>Preferences - Nexus Mods</title></head><body>' +
+      '<script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script>' +
+      '</body></html>';
+    expect(site.looksLikeAuthWall(loggedInPage)).toBe(false);
+  });
 });
