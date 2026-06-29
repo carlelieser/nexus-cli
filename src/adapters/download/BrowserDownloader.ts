@@ -34,21 +34,29 @@ export class BrowserDownloader implements Downloader {
     if (await exists(finalPath)) return finalPath; // already complete — skip.
 
     const partPath = `${finalPath}.part`;
+
+    // The signed CDN URL self-authenticates via its query params. Only Nexus's
+    // own hosts expect the session cookie; third-party CDNs reject the
+    // unexpected jar with a 400, so send cookies only to nexusmods.com hosts.
+    const onNexusHost = isNexusHost(resolved.cdnUrl);
+    const headers: Record<string, string> = {
+      'user-agent': resolved.userAgent,
+      referer: 'https://www.nexusmods.com/',
+    };
+    if (onNexusHost) headers.cookie = resolved.cookieHeader;
+
     let res: Response;
     try {
-      res = await fetch(resolved.cdnUrl, {
-        headers: {
-          cookie: resolved.cookieHeader,
-          'user-agent': resolved.userAgent,
-        },
-        ...(signal ? { signal } : {}),
-      });
+      res = await fetch(resolved.cdnUrl, { headers, ...(signal ? { signal } : {}) });
     } catch (e) {
       if (signal?.aborted) throw e; // propagate the AbortError untouched
       throw new NetworkError(`failed to fetch file ${target.fileId}`, { cause: e });
     }
     if (!res.ok || !res.body) {
-      throw new DownloadError(`download for file ${target.fileId} returned HTTP ${res.status}`);
+      const host = hostOf(resolved.cdnUrl);
+      throw new DownloadError(
+        `download for file ${target.fileId} returned HTTP ${res.status} (cdn: ${host})`,
+      );
     }
 
     const totalBytes = Number(res.headers.get('content-length') ?? 0);
@@ -73,6 +81,21 @@ export class BrowserDownloader implements Downloader {
     await rename(partPath, finalPath);
     return finalPath;
   }
+}
+
+/** The URL's hostname, or '' if unparseable. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/** Whether a URL is served from a nexusmods.com host (so the session cookie applies). */
+function isNexusHost(url: string): boolean {
+  const host = hostOf(url);
+  return host === 'nexusmods.com' || host.endsWith('.nexusmods.com');
 }
 
 /** Derive the filename from a signed CDN URL's path (decoded). */
