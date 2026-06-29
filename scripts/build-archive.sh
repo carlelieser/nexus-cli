@@ -37,11 +37,12 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/bin" "$STAGE/app" "$OUT_DIR" "${BUILD_DIR}/node"
 
 echo "Fetching ${node_url}"
-# `tar` extracts both .tar.gz and .zip (bsdtar on the Windows runners), so we
-# avoid `unzip`/`zip`, which Git Bash on windows-latest does not ship.
+# Windows ships only a .zip, and Git Bash's tar is GNU tar (can't read zip), so
+# extract with PowerShell's Expand-Archive. macOS/Linux use .tar.gz via tar.
 if [ "$ext" = "zip" ]; then
   curl -fsSL "$node_url" -o "${BUILD_DIR}/node.zip"
-  tar -xf "${BUILD_DIR}/node.zip" -C "${BUILD_DIR}/node"
+  powershell -NoProfile -Command \
+    "Expand-Archive -Path '${BUILD_DIR}/node.zip' -DestinationPath '${BUILD_DIR}/node' -Force"
   cp "${BUILD_DIR}/node/${node_pkg}/node.exe" "$STAGE/bin/node.exe"
 else
   curl -fsSL "$node_url" -o "${BUILD_DIR}/node.tgz"
