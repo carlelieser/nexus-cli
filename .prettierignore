@@ -1,0 +1,6 @@
+dist
+node_modules
+downloads
+package-lock.json
+test/fixtures
+*.html
