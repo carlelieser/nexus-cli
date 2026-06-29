@@ -33,7 +33,7 @@ export interface NexusSite {
    * Implementations should tag each target's category so the app can keep
    * only `main` files.
    */
-  resolveDownloadLinks(html: string): DownloadTarget[];
+  parseDownloadTargets(html: string): DownloadTarget[];
 
   /**
    * Whether a landed URL means the session was bounced to Nexus's sign-in host

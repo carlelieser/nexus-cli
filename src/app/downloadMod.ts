@@ -44,7 +44,7 @@ export async function downloadMod(
   }
 
   const html = await session.html();
-  const all = deps.site.resolveDownloadLinks(html);
+  const all = deps.site.parseDownloadTargets(html);
   const main = all.filter((t) => t.category === 'main');
   if (main.length === 0) {
     throw new ScrapeError(`mod ${params.modId} has no main files`);

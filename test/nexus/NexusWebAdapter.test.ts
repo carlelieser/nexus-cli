@@ -91,11 +91,11 @@ describe('parseCollectionMembers', () => {
   });
 });
 
-describe('resolveDownloadLinks', () => {
+describe('parseDownloadTargets', () => {
   const html = fixture('mod-files.html');
 
   it('categorises files by section', () => {
-    const targets = site.resolveDownloadLinks(html);
+    const targets = site.parseDownloadTargets(html);
     const byCat = (c: string) => targets.filter((t) => t.category === c).map((t) => t.fileId);
 
     expect(byCat('main').sort((a, b) => a - b)).toEqual([4001, 4002]);
@@ -104,7 +104,7 @@ describe('resolveDownloadLinks', () => {
   });
 
   it('builds the manual-download url from the file id', () => {
-    const targets = site.resolveDownloadLinks(html);
+    const targets = site.parseDownloadTargets(html);
     const main = targets.find((t) => t.fileId === 4001);
     expect(main?.url).toBe(
       'https://www.nexusmods.com/skyrimspecialedition/mods/100?tab=files&file_id=4001',
@@ -112,7 +112,7 @@ describe('resolveDownloadLinks', () => {
   });
 
   it('captures file names', () => {
-    const targets = site.resolveDownloadLinks(html);
+    const targets = site.parseDownloadTargets(html);
     expect(targets.find((t) => t.fileId === 4001)?.fileName).toBe('Awesome Mod 2.1');
   });
 });

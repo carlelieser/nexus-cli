@@ -27,7 +27,7 @@ describe('live smoke', () => {
         const landed = await session.goto(deps.site.modFilesUrl('skyrimspecialedition', 12604));
         expect(deps.site.isAuthRedirect(landed)).toBe(false);
         const html = await session.html();
-        const main = deps.site.resolveDownloadLinks(html).filter((t) => t.category === 'main');
+        const main = deps.site.parseDownloadTargets(html).filter((t) => t.category === 'main');
         expect(main.length).toBeGreaterThan(0);
       } finally {
         await session.close();
