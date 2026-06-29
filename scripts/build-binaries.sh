@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Compile standalone `nexus` executables for every supported OS/arch with Bun.
-# Each output is a single self-contained binary — no Node, no node_modules — so
-# the install scripts can drop one file on PATH. The Camoufox browser is NOT
-# bundled; `nexus setup` fetches it at install time.
+# The Camoufox browser is NOT bundled; `nexus setup` fetches it at install time.
 #
 # Usage: scripts/build-binaries.sh [outdir]   (default outdir: ./release)
 set -euo pipefail

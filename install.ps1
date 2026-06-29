@@ -3,7 +3,7 @@
 #   irm https://raw.githubusercontent.com/carlelieser/nexus-cli/main/install.ps1 | iex
 #
 # Downloads the prebuilt nexus.exe, puts it on PATH, and fetches the browser it
-# needs. No Node, no git, no build.
+# needs.
 $ErrorActionPreference = 'Stop'
 
 $Repo = 'carlelieser/nexus-cli'

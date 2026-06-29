@@ -9,9 +9,8 @@ interface SetupArgs {
 }
 
 /**
- * Download the Camoufox browser nexus drives for downloads. Run once by the
- * install script (and re-runnable by the user if the browser cache is wiped),
- * so the first real `download` never stalls on a ~150 MB fetch or fails with a
+ * Run by the install script (and re-runnable if the browser cache is wiped) so
+ * the first real `download` never stalls on a ~150 MB fetch or fails with a
  * cryptic "browser not found".
  */
 export const setupCommand: CommandModule = {

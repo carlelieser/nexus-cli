@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/carlelieser/nexus-cli/main/install.sh | sh
 #
 # Downloads the prebuilt `nexus` binary for this machine, puts it on PATH, and
-# fetches the browser it needs. No Node, no git, no build.
+# fetches the browser it needs.
 set -eu
 
 REPO="carlelieser/nexus-cli"

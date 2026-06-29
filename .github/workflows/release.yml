@@ -21,7 +21,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Build binaries
         run: bash scripts/build-binaries.sh release

@@ -8,10 +8,12 @@ import { defaultOutDir } from '@config/paths.js';
 import { basename } from 'node:path';
 import { AuthError, CancelError, isCancel } from '@core/errors.js';
 import { type DownloadReport, type ModResult, summarize } from '@core/types.js';
+import { parseNexusUrl } from '@adapters/nexus/parseNexusUrl.js';
 import { out } from '../output.js';
 import { buildDeps } from '../wiring.js';
 
 interface DownloadArgs {
+  target?: string;
   game: string;
   mod?: number;
   collection?: string;
@@ -27,13 +29,16 @@ const RETRY_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 1_000;
 
 export const downloadCommand: CommandModule = {
-  command: 'download',
+  command: 'download [target]',
   describe: 'Download a mod or a collection',
   builder: (y: Argv) =>
     y
+      .positional('target', {
+        type: 'string',
+        describe: 'A nexusmods.com mod or collection URL (or use --game with --mod/--collection)',
+      })
       .option('game', {
         type: 'string',
-        demandOption: true,
         describe: 'Nexus game domain (e.g. skyrimspecialedition)',
       })
       .option('mod', { type: 'number', describe: 'Numeric mod id' })
@@ -57,8 +62,22 @@ export const downloadCommand: CommandModule = {
       })
       .conflicts('mod', 'collection')
       .check((argv) => {
+        // A URL positional supplies game + mod/collection; resolve it into the
+        // same fields the flags use so the handler reads one shape.
+        if (typeof argv.target === 'string') {
+          const ref = parseNexusUrl(argv.target);
+          if (!ref) {
+            throw new Error(`not a recognised Nexus mod or collection URL: ${argv.target}`);
+          }
+          argv.game = ref.game;
+          if ('modId' in ref) argv.mod = ref.modId;
+          else argv.collection = ref.collection;
+        }
+        if (argv.game === undefined) {
+          throw new Error('provide a Nexus URL, or --game with --mod/--collection');
+        }
         if (argv.mod === undefined && argv.collection === undefined) {
-          throw new Error('one of --mod or --collection is required');
+          throw new Error('provide a Nexus URL, or --mod / --collection');
         }
         return true;
       }),
