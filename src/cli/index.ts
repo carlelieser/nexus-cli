@@ -3,6 +3,7 @@ import { hideBin } from 'yargs/helpers';
 
 import { downloadCommand } from './commands/download.js';
 import { importCommand } from './commands/import.js';
+import { loginCommand } from './commands/login.js';
 import { logoutCommand } from './commands/logout.js';
 
 await yargs(hideBin(process.argv))
@@ -14,6 +15,7 @@ await yargs(hideBin(process.argv))
     describe: 'Print full stack traces on error',
     global: true,
   })
+  .command(loginCommand)
   .command(importCommand)
   .command(logoutCommand)
   .command(downloadCommand)
