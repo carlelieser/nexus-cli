@@ -11,14 +11,11 @@ import {
   summarize,
 } from '@core/types.js';
 import { BackoffPolicy, DEFAULT_BACKOFF } from './backoff.js';
-import type { Opener } from './downloadMod.js';
 import { isThrottle, withRetry } from './retry.js';
 
 export interface DownloadCollectionDeps {
   site: NexusSite;
   downloader: Downloader;
-  /** Required only for `nmm` runs. */
-  opener?: Opener;
 }
 
 export interface DownloadCollectionParams {
@@ -27,26 +24,15 @@ export interface DownloadCollectionParams {
   outDir: string;
   concurrency: number;
   dryRun: boolean;
-  /** Include files the collection marks optional (default: required only). */
   includeOptional: boolean;
-  /** Defer the download to the user's mod manager instead of fetching. */
   nmm?: boolean;
   retryAttempts: number;
   retryBaseDelayMs: number;
-  /** Injected sleep, for deterministic tests. Defaults to real timers. */
   sleep?: (ms: number) => Promise<void>;
-  /**
-   * Cancels the run (Ctrl+C). Stops starting new members and aborts the
-   * in-flight download; surfaces as a CancelError from this function.
-   */
   signal?: AbortSignal;
-  /** Called once with the full member list after it is resolved. */
   onResolved?: (members: CollectionMember[]) => void;
-  /** Called before a member starts downloading (for live progress). */
   onStart?: (member: CollectionMember, index: number, total: number) => void;
-  /** Per-file byte progress for the active member. */
   onFileProgress?: (p: DownloadProgress) => void;
-  /** Progress callback, per completed member. */
   onProgress?: (r: ModResult) => void;
 }
 
@@ -80,8 +66,6 @@ export async function downloadCollection(
 
   const results: ModResult[] = [];
   for (let i = 0; i < members.length; i++) {
-    // Cancellation stops *starting* new members; the in-flight download is
-    // aborted from inside runOne, which re-throws to break out of the loop.
     params.signal?.throwIfAborted();
 
     const member = members[i]!;
@@ -114,11 +98,8 @@ async function runOne(
     return { modId: member.modId, ok: true, files: [name] };
   }
 
-  // `nmm` hands off to the user's mod manager: open the file's `nmm=1` URL in
-  // their real browser rather than streaming it ourselves.
   if (params.nmm) {
-    if (!deps.opener) throw new Error('nmm requires a URL opener');
-    await deps.opener(deps.site.nmmDownloadUrl(member.game, member.modId, member.fileId));
+    await session.handToManager(deps.site.nmmDownloadUrl(member.game, member.modId, member.fileId));
     return { modId: member.modId, ok: true, files: [name] };
   }
 
@@ -142,7 +123,6 @@ async function runOne(
     );
     return { modId: member.modId, ok: true, files: [path] };
   } catch (e) {
-    // A cancellation is not a per-member failure — let it abort the batch.
     if (isCancel(e)) throw e;
     const message = e instanceof Error ? e.message : String(e);
     return {
