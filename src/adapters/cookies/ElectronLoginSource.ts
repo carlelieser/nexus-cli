@@ -28,15 +28,13 @@ const SAME_SITE: Record<string, Cookie['sameSite']> = {
 export class ElectronLoginSource implements CookieSource {
   readonly browser = 'browser login';
 
-  constructor(private readonly signInUrl: string) {}
-
-  async read(domainSuffix: string): Promise<Cookie[]> {
+  async read(): Promise<Cookie[]> {
     const electronPath = resolveElectronBinary();
     const script = fileURLToPath(
       new URL(/* @vite-ignore */ '../../electron/login.cjs', import.meta.url),
     );
 
-    const raw = await runElectron(electronPath, script, this.signInUrl, domainSuffix);
+    const raw = await runElectron(electronPath, script);
     let parsed: ElectronCookie[];
     try {
       parsed = JSON.parse(raw) as ElectronCookie[];
@@ -62,14 +60,9 @@ function resolveElectronBinary(): string {
   return path;
 }
 
-function runElectron(
-  electronPath: string,
-  script: string,
-  signInUrl: string,
-  domainSuffix: string,
-): Promise<string> {
+function runElectron(electronPath: string, script: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(electronPath, [script, signInUrl, domainSuffix], {
+    const child = spawn(electronPath, [script], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';

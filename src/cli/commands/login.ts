@@ -5,8 +5,6 @@ import { ElectronLoginSource } from '@adapters/cookies/ElectronLoginSource.js';
 import { out } from '../output.js';
 import { buildDeps, NEXUS_COOKIE_DOMAIN } from '../wiring.js';
 
-const SIGN_IN_URL = 'https://users.nexusmods.com/';
-
 interface LoginArgs {
   validate: boolean;
   verbose: boolean;
@@ -26,7 +24,7 @@ export const loginCommand: CommandModule = {
     const { browser, store } = buildDeps();
     out.info('Opening browser window. Please log in to Nexus to continue.');
     try {
-      const source = new ElectronLoginSource(SIGN_IN_URL);
+      const source = new ElectronLoginSource();
       await importSession(
         { source, browser, store },
         { domainSuffix: NEXUS_COOKIE_DOMAIN, validate: argv.validate },

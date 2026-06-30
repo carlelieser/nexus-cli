@@ -7,8 +7,10 @@ const { join } = require('node:path');
 const { app, BrowserWindow } = require('electron');
 const { randomUUID } = require('node:crypto');
 
-const SIGN_IN_URL = process.argv[process.argv.length - 2];
-const DOMAIN_SUFFIX = process.argv[process.argv.length - 1];
+const SIGN_IN_URL = 'https://users.nexusmods.com/';
+const DOMAIN_SUFFIX = '.nexusmods.com';
+
+app.disableHardwareAcceleration();
 
 app.setPath('userData', mkdtempSync(join(tmpdir(), `nexus-login-${randomUUID()}`)));
 
@@ -39,6 +41,10 @@ app.whenReady().then(async () => {
     if (new URL(url).pathname === '/account/security') {
       finish(await getCookies(ses), 0);
     }
+  });
+
+  win.webContents.on('render-process-gone', (_e, details) => {
+    finish([], 1, `login window renderer crashed (${details.reason})`);
   });
 
   win.on('closed', async () => {

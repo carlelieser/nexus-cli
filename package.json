@@ -93,6 +93,9 @@
     "playwright-core": "1.49.1"
   },
   "allowScripts": {
-    "electron@42.5.1": true
+    "electron@42.5.1": true,
+    "better-sqlite3@12.11.1": true,
+    "@primno/dpapi@1.1.2": true,
+    "@primno/dpapi@2.0.1": true
   }
 }
