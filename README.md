@@ -36,7 +36,13 @@ Download the archive for your platform from the
 
 ## Usage
 
-Log in to [Nexus](https://users.nexusmods.com/) in your browser and run the following command to import your session.
+Log in to Nexus. This opens a browser window — sign in, and your session is saved automatically.
+
+```sh
+nexus login
+```
+
+Alternatively, if you're already logged in to [Nexus](https://users.nexusmods.com/) in your browser, import that session instead:
 
 ```sh
 nexus import --from chrome
