@@ -11,6 +11,7 @@ export default tseslint.config(
       'binaries/**',
       'node_modules/**',
       'downloads/**',
+      'electron/**',
       'test/fixtures/**',
     ],
   },
