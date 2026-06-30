@@ -91,5 +91,8 @@
   },
   "overrides": {
     "playwright-core": "1.49.1"
+  },
+  "allowScripts": {
+    "electron@42.5.1": true
   }
 }
