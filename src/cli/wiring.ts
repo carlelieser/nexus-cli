@@ -5,23 +5,17 @@ import { FileCookieSource } from '@adapters/cookies/FileCookieSource.js';
 import { BrowserDownloader } from '@adapters/download/BrowserDownloader.js';
 import { NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 import { FileSessionStore } from '@adapters/session/FileSessionStore.js';
-import type { Opener } from '@app/downloadMod.js';
-import open from 'open';
 
 /**
  * Composition root: the only place concrete adapters are constructed. Commands
  * receive these via their handlers; the app layer never imports them.
  */
 export function buildDeps() {
-  const opener: Opener = async (url) => {
-    await open(url);
-  };
   return {
     browser: new CamoufoxBrowser(),
     store: new FileSessionStore(),
     site: new NexusWebAdapter(),
     downloader: new BrowserDownloader(),
-    opener,
   };
 }
 

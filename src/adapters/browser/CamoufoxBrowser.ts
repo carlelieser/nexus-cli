@@ -44,18 +44,11 @@ function isContextDestroyed(e: unknown): boolean {
 /** Camoufox-backed implementation of the Browser interface. */
 export class CamoufoxBrowser implements Browser {
   async launch(opts: LaunchOptions): Promise<BrowserSession> {
-    // Auth comes from imported cookies, so a throwaway profile is fine. Passing
-    // user_data_dir makes Camoufox return a fully-configured BrowserContext —
-    // we must NOT call newContext() ourselves (Camoufox's patched Firefox
-    // rejects Playwright's setDefaultViewport).
     const userDataDir = await mkdtemp(join(tmpdir(), 'nexus-camoufox-'));
     const context = await Camoufox({
       headless: !opts.headful,
       user_data_dir: userDataDir,
       humanize: true,
-      // Pin locale to match the imported session's origin. geoip is left OFF:
-      // when it resolved to a different region than the session cookies, the
-      // fingerprint/cookie mismatch triggered a hard Cloudflare challenge.
       locale: 'en-US',
     });
 
@@ -76,20 +69,9 @@ class CamoufoxSession implements BrowserSession {
     return this.page.url();
   }
 
-  /**
-   * Navigate to `url` and, if Cloudflare intercepts with a challenge, wait for
-   * Camoufox to auto-solve it. Returns the response for the real page.
-   *
-   * A challenge is identified by the `cf-mitigated: challenge` response header —
-   * a protocol signal, not page markup. When it's absent the response is the
-   * real page and we return at once; when present, Camoufox's auto-solve fires
-   * its own navigation to the real page, which we wait for.
-   */
   private async navigate(url: string): Promise<NavResponse> {
     let response: NavResponse;
     try {
-      // `commit` resolves as soon as the response headers arrive — we don't
-      // block on a heavy page's trailing resources.
       response = await this.page.goto(url, { waitUntil: 'commit' });
     } catch (e) {
       throw new NetworkError(`failed to load ${url}`, { cause: e });
@@ -102,10 +84,6 @@ class CamoufoxSession implements BrowserSession {
         .catch(() => response);
     }
 
-    // Let the document finish (incl. any client-side redirect like
-    // myaccount → settings) before returning, so a subsequent navigation does
-    // not abort an in-flight one (NS_BINDING_ABORTED). Best-effort: a heavy
-    // page that never fully idles must not block the caller.
     await this.page
       .waitForLoadState('domcontentloaded', { timeout: 10_000 })
       .catch(() => undefined);
@@ -133,17 +111,12 @@ class CamoufoxSession implements BrowserSession {
     } catch {
       return false;
     }
-    // The account URL redirects to /settings or /users/... when authenticated,
-    // and to the sign-in host when not.
     if (new URL(this.page.url()).host === SIGN_IN_HOST) return false;
     const url = this.page.url();
     return url.includes('/users/') || url.includes('/settings');
   }
 
   async html(): Promise<string> {
-    // `content()` throws if the page is mid-navigation (the `commit`-based goto
-    // can return while a redirect is still settling). Wait for the DOM to be
-    // ready and retry a couple of times before giving up.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         await this.page.waitForLoadState('domcontentloaded', { timeout: 10_000 });
@@ -160,20 +133,10 @@ class CamoufoxSession implements BrowserSession {
     body: unknown,
     headers: Record<string, string> = {},
   ): Promise<unknown> {
-    // Run fetch INSIDE the page so cookies + origin (nexusmods.com) apply —
-    // required for the GraphQL endpoint to accept the request.
-    //
-    // The fetch is cross-origin (api-router.nexusmods.com), so the page's own
-    // origin must be www.nexusmods.com or the browser rejects it with a CORS
-    // "NetworkError". After session restore the page sits on the account host
-    // (users.nexusmods.com / settings), so move to www first.
     if (new URL(this.page.url()).host !== MAIN_HOST) {
       await this.navigate(`https://${MAIN_HOST}/`).catch(() => undefined);
     }
 
-    // The page may still be settling a client-side redirect from the preceding
-    // navigation (e.g. account-page warm-up), which destroys the execution
-    // context mid-evaluate. Wait for the DOM to be ready and retry once.
     for (let attempt = 0; ; attempt++) {
       await this.page
         .waitForLoadState('domcontentloaded', { timeout: 10_000 })
@@ -215,30 +178,19 @@ class CamoufoxSession implements BrowserSession {
 
   async resolveDownloadUrl(filePageUrl: string): Promise<ResolvedDownload> {
     try {
-      // The manual-download page renders a <mod-file-download> web component
-      // whose "Slow download" button (in an open shadow root) triggers a POST
-      // to GenerateDownloadUrl that returns the signed CDN URL. We drive that
-      // button (the trusted path that clears Cloudflare) and capture the
-      // resolver's JSON response — then Node streams the URL itself.
       await this.navigate(filePageUrl);
 
       const slowButton = this.page.getByRole('button', { name: /slow download/i });
       await slowButton.waitFor({ state: 'visible', timeout: 30_000 });
 
-      // Wait for the resolver POST regardless of status. Matching only 200s
-      // meant a failed resolve never matched and we hung the full timeout; the
-      // failure response is the signal, so inspect it instead of the page.
       const respPromise = this.page.waitForResponse((r) => /GenerateDownloadUrl/i.test(r.url()), {
         timeout: RESOLVE_TIMEOUT_MS,
       });
-      // We don't want the native download — cancel it; we stream the URL.
       this.page.once('download', (d) => void d.cancel().catch(() => undefined));
       await slowButton.click();
 
       const resp = await respPromise;
       if (!resp.ok()) {
-        // e.g. Nexus's "download link could not be retrieved, try again later".
-        // Retryable — surfaced as NetworkError so withRetry backs off and retries.
         throw new NetworkError(`download resolver returned HTTP ${resp.status()}`);
       }
       const cdnUrl = ((await resp.json()) as { url?: string }).url;
@@ -252,6 +204,21 @@ class CamoufoxSession implements BrowserSession {
     } catch (e) {
       if (e instanceof NetworkError) throw e;
       throw new NetworkError(`failed to resolve download for ${filePageUrl}`, {
+        cause: e,
+      });
+    }
+  }
+
+  async handToManager(nmmUrl: string): Promise<void> {
+    try {
+      await this.navigate(nmmUrl);
+
+      const slowButton = this.page.getByRole('button', { name: /slow download/i });
+      await slowButton.waitFor({ state: 'visible', timeout: 30_000 });
+      await slowButton.click();
+    } catch (e) {
+      if (e instanceof NetworkError) throw e;
+      throw new NetworkError(`failed to hand off download for ${nmmUrl}`, {
         cause: e,
       });
     }

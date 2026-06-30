@@ -13,10 +13,10 @@ import type { Cookie, DownloadTarget, Session } from '@core/types.js';
 export class FakeSession implements BrowserSession {
   goneTo: string[] = [];
   resolved: string[] = [];
+  handedOff: string[] = [];
   seededCookies: Cookie[] = [];
   closed = false;
   loggedIn = true;
-  /** Canned JSON returned by postJson (e.g. a GraphQL collection response). */
   jsonResponse: unknown = null;
 
   constructor(
@@ -59,6 +59,9 @@ export class FakeSession implements BrowserSession {
       cookieHeader: 'sid=abc',
       userAgent: 'fake-agent',
     };
+  }
+  async handToManager(nmmUrl: string): Promise<void> {
+    this.handedOff.push(nmmUrl);
   }
   async close(): Promise<void> {
     this.closed = true;
@@ -121,14 +124,6 @@ export class FakeDownloader implements Downloader {
     this.fetched.push(target);
     return `${outDir}/file-${target.fileId}`;
   }
-}
-
-/** Records URLs handed to the OS opener (the nmm handoff). */
-export class FakeOpener {
-  opened: string[] = [];
-  open = async (url: string): Promise<void> => {
-    this.opened.push(url);
-  };
 }
 
 export const noSleep = async (): Promise<void> => {};
