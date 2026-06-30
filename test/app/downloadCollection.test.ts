@@ -87,6 +87,21 @@ describe('downloadCollection', () => {
     ]);
   });
 
+  it('nmm is best-effort: one failing handoff does not abort the batch', async () => {
+    const downloader = new FakeDownloader();
+    const session = collectionSession([member(100, 4001, false), member(101, 4002, false)]);
+    session.failHandoffUrls.add(site.nmmDownloadUrl(GAME, 100, 4001));
+
+    const report = await downloadCollection({ site, downloader }, session, {
+      ...baseParams,
+      nmm: true,
+    });
+
+    expect(report.succeeded).toBe(1);
+    expect(report.failed).toBe(1);
+    expect(session.handedOff).toEqual([site.nmmDownloadUrl(GAME, 101, 4002)]);
+  });
+
   it('is best-effort: one failing file does not abort the batch', async () => {
     const downloader = new FakeDownloader(new Set([4002]));
     const report = await downloadCollection(

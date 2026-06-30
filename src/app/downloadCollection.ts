@@ -99,8 +99,22 @@ async function runOne(
   }
 
   if (params.nmm) {
-    await session.handToManager(deps.site.nmmDownloadUrl(member.game, member.modId, member.fileId));
-    return { modId: member.modId, ok: true, files: [name] };
+    try {
+      await session.handToManager(
+        deps.site.nmmDownloadUrl(member.game, member.modId, member.fileId),
+      );
+      return { modId: member.modId, ok: true, files: [name] };
+    } catch (e) {
+      if (isCancel(e)) throw e;
+      const message = e instanceof Error ? e.message : String(e);
+      return {
+        modId: member.modId,
+        ok: false,
+        files: [],
+        error: message,
+        throttled: isThrottle(e),
+      };
+    }
   }
 
   const target: DownloadTarget = {

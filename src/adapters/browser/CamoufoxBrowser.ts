@@ -48,8 +48,13 @@ export class CamoufoxBrowser implements Browser {
     const context = await Camoufox({
       headless: !opts.headful,
       user_data_dir: userDataDir,
-      humanize: true,
+      humanize: false,
       locale: 'en-US',
+      firefox_user_prefs: {
+        'network.protocol-handler.external.nxm': true,
+        'network.protocol-handler.warn-external.nxm': false,
+        'network.protocol-handler.expose.nxm': false,
+      },
     });
 
     const page = context.pages()[0] ?? (await context.newPage());

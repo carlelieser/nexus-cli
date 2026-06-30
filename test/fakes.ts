@@ -60,7 +60,12 @@ export class FakeSession implements BrowserSession {
       userAgent: 'fake-agent',
     };
   }
+  /** nmm URLs whose handoff should throw, to exercise best-effort behavior. */
+  failHandoffUrls = new Set<string>();
   async handToManager(nmmUrl: string): Promise<void> {
+    if (this.failHandoffUrls.has(nmmUrl)) {
+      throw new Error(`failed to hand off download for ${nmmUrl}`);
+    }
     this.handedOff.push(nmmUrl);
   }
   async close(): Promise<void> {

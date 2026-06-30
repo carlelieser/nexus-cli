@@ -8,7 +8,7 @@ const { app, BrowserWindow } = require('electron');
 const { randomUUID } = require('node:crypto');
 
 const SIGN_IN_URL = 'https://users.nexusmods.com/';
-const DOMAIN_SUFFIX = '.nexusmods.com';
+const DOMAIN_SUFFIX = 'nexusmods.com';
 
 app.disableHardwareAcceleration();
 
