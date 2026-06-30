@@ -36,6 +36,7 @@ else
 fi
 
 cp -R dist "$STAGE/app/dist"
+cp -R electron "$STAGE/app/electron"
 cp package.json "$STAGE/app/package.json"
 cp -R node_modules "$STAGE/app/node_modules"
 
