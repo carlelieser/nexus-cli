@@ -1,4 +1,10 @@
-import type { CollectionMember, DownloadTarget, GameDomain } from '@core/types.js';
+import type {
+  CollectionMember,
+  DownloadTarget,
+  GameDomain,
+  ModDetails,
+  ModSearch,
+} from '@core/types.js';
 
 /** A JSON HTTP request the browser session can execute with the session. */
 export interface JsonRequest {
@@ -13,6 +19,9 @@ export interface JsonRequest {
  * specifics.
  */
 export interface NexusSite {
+  /** Canonical URL of a mod's page. */
+  modUrl(game: GameDomain, modId: number): string;
+
   /** URL of a mod's "files" tab. */
   modFilesUrl(game: GameDomain, modId: number): string;
 
@@ -24,6 +33,24 @@ export interface NexusSite {
 
   /** Parse the GraphQL response into collection members. */
   parseCollectionMembers(json: unknown): CollectionMember[];
+
+  /** Build the GraphQL request that searches mods by name. */
+  modSearchQuery(term: string, opts: { game?: GameDomain; limit: number }): JsonRequest;
+
+  /** Parse the GraphQL search response. */
+  parseModSearch(json: unknown): ModSearch;
+
+  /** Build the GraphQL request that resolves a game domain to its numeric id. */
+  gameIdQuery(game: GameDomain): JsonRequest;
+
+  /** Parse the game-id response. Throws when the domain is unknown. */
+  parseGameId(json: unknown): number;
+
+  /** Build the GraphQL request that fetches one mod's details. */
+  modDetailsQuery(gameId: number, modId: number): JsonRequest;
+
+  /** Parse the mod-details response. Null when the mod does not exist. */
+  parseModDetails(json: unknown): ModDetails | null;
 
   /** Build the manual-download URL for a specific file of a mod. */
   fileDownloadUrl(game: GameDomain, modId: number, fileId: number): string;

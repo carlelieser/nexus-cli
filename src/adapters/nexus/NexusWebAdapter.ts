@@ -1,5 +1,14 @@
 import { ScrapeError } from '@core/errors.js';
-import type { CollectionMember, DownloadTarget, FileCategory, GameDomain } from '@core/types.js';
+import type {
+  CollectionMember,
+  DownloadTarget,
+  FileCategory,
+  GameDomain,
+  ModDetails,
+  ModRequirement,
+  ModSearch,
+  ModSearchResult,
+} from '@core/types.js';
 import type { JsonRequest, NexusSite } from './NexusSite.js';
 
 const BASE = 'https://www.nexusmods.com';
@@ -25,6 +34,57 @@ const COLLECTION_QUERY = `
     }
   }`;
 
+const MOD_SEARCH_QUERY = `
+  query ModsSearch($filter: ModsFilter, $count: Int, $offset: Int) {
+    mods(filter: $filter, count: $count, offset: $offset,
+         sort: { endorsements: { direction: DESC } }) {
+      totalCount
+      nodes {
+        modId
+        name
+        summary
+        downloads
+        endorsements
+        game { domainName }
+      }
+    }
+  }`;
+
+const GAME_ID_QUERY = `
+  query GameId($domain: String!) {
+    game(domainName: $domain) { id }
+  }`;
+
+// The mods filter only accepts a numeric gameId alongside modId (filtering by
+// gameDomainName + modId is rejected), hence the separate GameId lookup.
+const MOD_DETAILS_QUERY = `
+  query ModDetails($filter: ModsFilter) {
+    mods(filter: $filter, count: 1) {
+      nodes {
+        modId
+        name
+        summary
+        version
+        author
+        uploader { name }
+        createdAt
+        updatedAt
+        downloads
+        endorsements
+        adultContent
+        pictureUrl
+        game { domainName }
+        gameId
+        modRequirements {
+          dlcRequirements { gameExpansion { name } notes }
+          nexusRequirements(count: 50) {
+            nodes { modName notes url modId gameId externalRequirement }
+          }
+        }
+      }
+    }
+  }`;
+
 /**
  * Scrapes Nexus pages from raw HTML. Deliberately dependency-free (regex over
  * the markup) so it is fast and trivially unit-testable against fixtures.
@@ -33,8 +93,12 @@ const COLLECTION_QUERY = `
  * fixtures change.
  */
 export class NexusWebAdapter implements NexusSite {
+  modUrl(game: GameDomain, modId: number): string {
+    return `${BASE}/${game}/mods/${modId}`;
+  }
+
   modFilesUrl(game: GameDomain, modId: number): string {
-    return `${BASE}/${game}/mods/${modId}?tab=files`;
+    return `${this.modUrl(game, modId)}?tab=files`;
   }
 
   collectionUrl(game: GameDomain, ref: string): string {
@@ -81,6 +145,115 @@ export class NexusWebAdapter implements NexusSite {
       throw new ScrapeError('collection has no downloadable files');
     }
     return members;
+  }
+
+  modSearchQuery(term: string, opts: { game?: GameDomain; limit: number }): JsonRequest {
+    return {
+      url: GRAPHQL_URL,
+      body: {
+        operationName: 'ModsSearch',
+        query: MOD_SEARCH_QUERY,
+        variables: {
+          count: opts.limit,
+          offset: 0,
+          filter: {
+            name: { value: term, op: 'WILDCARD' },
+            ...(opts.game ? { gameDomainName: { value: opts.game, op: 'EQUALS' } } : {}),
+          },
+        },
+      },
+      headers: { 'x-graphql-operationname': 'ModsSearch' },
+    };
+  }
+
+  parseModSearch(json: unknown): ModSearch {
+    const mods = (json as GqlSearchResponse)?.data?.mods;
+    if (!Array.isArray(mods?.nodes)) {
+      throw new ScrapeError('unexpected search response shape');
+    }
+
+    // Zero matches is a valid answer (unlike an empty collection).
+    const results: ModSearchResult[] = [];
+    for (const node of mods.nodes) {
+      const game = node.game?.domainName;
+      if (!node.modId || !node.name || !game) continue;
+      results.push({
+        game,
+        modId: node.modId,
+        name: node.name,
+        ...(node.summary ? { summary: node.summary } : {}),
+        ...(typeof node.downloads === 'number' ? { downloads: node.downloads } : {}),
+        ...(typeof node.endorsements === 'number' ? { endorsements: node.endorsements } : {}),
+      });
+    }
+
+    return { results, totalCount: mods.totalCount ?? results.length };
+  }
+
+  gameIdQuery(game: GameDomain): JsonRequest {
+    return {
+      url: GRAPHQL_URL,
+      body: {
+        operationName: 'GameId',
+        query: GAME_ID_QUERY,
+        variables: { domain: game },
+      },
+      headers: { 'x-graphql-operationname': 'GameId' },
+    };
+  }
+
+  parseGameId(json: unknown): number {
+    const id = (json as GqlGameIdResponse)?.data?.game?.id;
+    if (typeof id !== 'number') {
+      throw new ScrapeError('unknown game domain');
+    }
+    return id;
+  }
+
+  modDetailsQuery(gameId: number, modId: number): JsonRequest {
+    return {
+      url: GRAPHQL_URL,
+      body: {
+        operationName: 'ModDetails',
+        query: MOD_DETAILS_QUERY,
+        variables: {
+          filter: {
+            gameId: { value: String(gameId), op: 'EQUALS' },
+            modId: { value: String(modId), op: 'EQUALS' },
+          },
+        },
+      },
+      headers: { 'x-graphql-operationname': 'ModDetails' },
+    };
+  }
+
+  parseModDetails(json: unknown): ModDetails | null {
+    const nodes = (json as GqlModDetailsResponse)?.data?.mods?.nodes;
+    if (!Array.isArray(nodes)) {
+      throw new ScrapeError('unexpected mod details response shape');
+    }
+
+    const node = nodes[0];
+    const game = node?.game?.domainName;
+    if (!node?.modId || !node.name || !game) return null;
+
+    const requirements = requirementsOf(node);
+    return {
+      game,
+      modId: node.modId,
+      name: node.name,
+      ...(node.summary ? { summary: node.summary } : {}),
+      ...(node.version ? { version: node.version } : {}),
+      ...(node.author ? { author: node.author } : {}),
+      ...(node.uploader?.name ? { uploader: node.uploader.name } : {}),
+      ...(node.createdAt ? { createdAt: node.createdAt } : {}),
+      ...(node.updatedAt ? { updatedAt: node.updatedAt } : {}),
+      ...(typeof node.downloads === 'number' ? { downloads: node.downloads } : {}),
+      ...(typeof node.endorsements === 'number' ? { endorsements: node.endorsements } : {}),
+      ...(typeof node.adultContent === 'boolean' ? { adultContent: node.adultContent } : {}),
+      ...(node.pictureUrl ? { pictureUrl: node.pictureUrl } : {}),
+      ...(requirements.length > 0 ? { requirements } : {}),
+    };
   }
 
   fileDownloadUrl(game: GameDomain, modId: number, fileId: number): string {
@@ -154,6 +327,94 @@ interface GqlResponse {
       }[];
     };
   };
+}
+
+interface GqlSearchResponse {
+  data?: {
+    mods?: {
+      totalCount?: number;
+      nodes?: {
+        modId?: number;
+        name?: string;
+        summary?: string;
+        downloads?: number;
+        endorsements?: number;
+        game?: { domainName?: GameDomain };
+      }[];
+    };
+  };
+}
+
+interface GqlGameIdResponse {
+  data?: { game?: { id?: number } | null };
+}
+
+interface GqlModDetailsNode {
+  modId?: number;
+  name?: string;
+  summary?: string;
+  version?: string;
+  author?: string;
+  uploader?: { name?: string } | null;
+  createdAt?: string;
+  updatedAt?: string;
+  downloads?: number;
+  endorsements?: number;
+  adultContent?: boolean;
+  pictureUrl?: string;
+  game?: { domainName?: GameDomain };
+  gameId?: number;
+  modRequirements?: {
+    dlcRequirements?: { gameExpansion?: { name?: string } | null; notes?: string | null }[];
+    nexusRequirements?: {
+      nodes?: {
+        modName?: string;
+        notes?: string | null;
+        url?: string;
+        modId?: string;
+        gameId?: string;
+        externalRequirement?: boolean;
+      }[];
+    };
+  } | null;
+}
+
+interface GqlModDetailsResponse {
+  data?: { mods?: { nodes?: GqlModDetailsNode[] } };
+}
+
+/**
+ * Flatten a mod's requirements: DLC first, then Nexus/external mods. A
+ * same-game mod requirement gets a `game`/`modId` ref (the API only reports
+ * numeric game ids, so cross-game requirements stay name-only).
+ */
+function requirementsOf(node: GqlModDetailsNode): ModRequirement[] {
+  const requirements: ModRequirement[] = [];
+
+  for (const dlc of node.modRequirements?.dlcRequirements ?? []) {
+    const name = dlc.gameExpansion?.name;
+    if (!name) continue;
+    requirements.push({ name, dlc: true, ...(dlc.notes ? { notes: dlc.notes } : {}) });
+  }
+
+  for (const req of node.modRequirements?.nexusRequirements?.nodes ?? []) {
+    if (!req.modName) continue;
+    const modId = Number(req.modId);
+    const sameGame =
+      !req.externalRequirement &&
+      Number(req.gameId) === node.gameId &&
+      node.game?.domainName !== undefined;
+    requirements.push({
+      name: req.modName,
+      ...(req.notes ? { notes: req.notes } : {}),
+      ...(sameGame && Number.isFinite(modId) && modId > 0
+        ? { game: node.game!.domainName!, modId }
+        : {}),
+      ...(req.url ? { url: req.url } : {}),
+    });
+  }
+
+  return requirements;
 }
 
 interface Segment {

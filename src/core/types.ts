@@ -52,6 +52,54 @@ export interface Mod {
   name?: string;
 }
 
+/** One mod returned by a Nexus search. Always named, with ranking metadata. */
+export interface ModSearchResult {
+  game: GameDomain;
+  modId: number;
+  name: string;
+  summary?: string;
+  downloads?: number;
+  endorsements?: number;
+}
+
+/** A page of search results plus the total match count. */
+export interface ModSearch {
+  results: ModSearchResult[];
+  totalCount: number;
+}
+
+/** One requirement of a mod: another Nexus mod, an external tool, or game DLC. */
+export interface ModRequirement {
+  name: string;
+  notes?: string;
+  /** Set when the requirement is a Nexus mod in the same game. */
+  game?: GameDomain;
+  modId?: number;
+  /** Link for external (off-Nexus) requirements, when given. */
+  url?: string;
+  /** True when the requirement is game DLC rather than a mod. */
+  dlc?: boolean;
+}
+
+/** Full details for one mod, as reported by the Nexus API. */
+export interface ModDetails {
+  game: GameDomain;
+  modId: number;
+  name: string;
+  summary?: string;
+  version?: string;
+  author?: string;
+  uploader?: string;
+  /** ISO-8601 timestamps. */
+  createdAt?: string;
+  updatedAt?: string;
+  downloads?: number;
+  endorsements?: number;
+  adultContent?: boolean;
+  pictureUrl?: string;
+  requirements?: ModRequirement[];
+}
+
 /**
  * A member of a collection — one specific file the collection curates. A
  * collection pins exact files (by `fileId`), not just mods, and flags some as

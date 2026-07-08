@@ -12,6 +12,12 @@ const fixture = (name: string): string =>
 const site = new NexusWebAdapter();
 
 describe('NexusWebAdapter URLs', () => {
+  it('builds a mod page url', () => {
+    expect(site.modUrl('skyrimspecialedition', 100)).toBe(
+      'https://www.nexusmods.com/skyrimspecialedition/mods/100',
+    );
+  });
+
   it('builds a mod files url', () => {
     expect(site.modFilesUrl('skyrimspecialedition', 100)).toBe(
       'https://www.nexusmods.com/skyrimspecialedition/mods/100?tab=files',
@@ -94,6 +100,229 @@ describe('parseCollectionMembers', () => {
     expect(() =>
       site.parseCollectionMembers({ data: { collectionRevision: { modFiles: [] } } }),
     ).toThrow(ScrapeError);
+  });
+});
+
+describe('modSearchQuery', () => {
+  it('builds a GraphQL request with a wildcard name filter', () => {
+    const req = site.modSearchQuery('skyui', { limit: 5 });
+    expect(req.url).toContain('graphql');
+    expect(req.headers?.['x-graphql-operationname']).toBe('ModsSearch');
+    const body = req.body as {
+      variables: { count: number; filter: { name: { value: string }; gameDomainName?: unknown } };
+    };
+    expect(body.variables.count).toBe(5);
+    expect(body.variables.filter.name.value).toBe('skyui');
+    expect(body.variables.filter.gameDomainName).toBeUndefined();
+  });
+
+  it('filters by game domain when given', () => {
+    const req = site.modSearchQuery('skyui', { game: 'skyrimspecialedition', limit: 5 });
+    const body = req.body as {
+      variables: { filter: { gameDomainName?: { value: string } } };
+    };
+    expect(body.variables.filter.gameDomainName?.value).toBe('skyrimspecialedition');
+  });
+});
+
+describe('parseModSearch', () => {
+  const json = {
+    data: {
+      mods: {
+        totalCount: 193,
+        nodes: [
+          {
+            modId: 12604,
+            name: 'SkyUI',
+            summary: 'Elegant, PC-friendly interface mod',
+            downloads: 1000,
+            endorsements: 500,
+            game: { domainName: 'skyrimspecialedition' },
+          },
+          { modId: 3863, name: 'SkyUI', game: { domainName: 'skyrim' } },
+        ],
+      },
+    },
+  };
+
+  it('maps nodes to results with the total count', () => {
+    const search = site.parseModSearch(json);
+    expect(search.totalCount).toBe(193);
+    expect(search.results).toHaveLength(2);
+    expect(search.results[0]).toMatchObject({
+      game: 'skyrimspecialedition',
+      modId: 12604,
+      name: 'SkyUI',
+      summary: 'Elegant, PC-friendly interface mod',
+      downloads: 1000,
+      endorsements: 500,
+    });
+    expect(search.results[1]?.summary).toBeUndefined();
+  });
+
+  it('skips nodes missing modId, name, or game domain', () => {
+    const search = site.parseModSearch({
+      data: {
+        mods: {
+          totalCount: 3,
+          nodes: [
+            { modId: 1, game: { domainName: 'skyrim' } },
+            { modId: 2, name: 'No Game' },
+            { modId: 3, name: 'Ok', game: { domainName: 'skyrim' } },
+          ],
+        },
+      },
+    });
+    expect(search.results.map((r) => r.modId)).toEqual([3]);
+  });
+
+  it('returns an empty result for zero matches (no throw)', () => {
+    const search = site.parseModSearch({ data: { mods: { totalCount: 0, nodes: [] } } });
+    expect(search).toEqual({ results: [], totalCount: 0 });
+  });
+
+  it('throws ScrapeError on an unexpected shape', () => {
+    expect(() => site.parseModSearch({ data: {} })).toThrow(ScrapeError);
+  });
+});
+
+describe('gameIdQuery / parseGameId', () => {
+  it('builds a GraphQL request for the game domain', () => {
+    const req = site.gameIdQuery('skyrimspecialedition');
+    expect(req.url).toContain('graphql');
+    expect(req.headers?.['x-graphql-operationname']).toBe('GameId');
+    const body = req.body as { variables: { domain: string } };
+    expect(body.variables.domain).toBe('skyrimspecialedition');
+  });
+
+  it('parses the numeric game id', () => {
+    expect(site.parseGameId({ data: { game: { id: 1704 } } })).toBe(1704);
+  });
+
+  it('throws ScrapeError for an unknown domain', () => {
+    expect(() => site.parseGameId({ data: { game: null } })).toThrow(ScrapeError);
+  });
+});
+
+describe('modDetailsQuery / parseModDetails', () => {
+  it('builds a GraphQL request filtering by game id and mod id', () => {
+    const req = site.modDetailsQuery(1704, 12604);
+    expect(req.url).toContain('graphql');
+    expect(req.headers?.['x-graphql-operationname']).toBe('ModDetails');
+    const body = req.body as {
+      variables: { filter: { gameId: { value: string }; modId: { value: string } } };
+    };
+    expect(body.variables.filter.gameId.value).toBe('1704');
+    expect(body.variables.filter.modId.value).toBe('12604');
+  });
+
+  it('maps the node to details, keeping only present fields', () => {
+    const details = site.parseModDetails({
+      data: {
+        mods: {
+          nodes: [
+            {
+              modId: 12604,
+              name: 'SkyUI',
+              summary: 'Interface mod',
+              version: '6.9',
+              author: 'SkyUI Team',
+              uploader: { name: 'schlangster' },
+              createdAt: '2017-10-01T11:55:43Z',
+              updatedAt: '2026-05-05T22:41:21Z',
+              downloads: 24620161,
+              endorsements: 494035,
+              adultContent: false,
+              pictureUrl: 'https://staticdelivery.nexusmods.com/pic.png',
+              game: { domainName: 'skyrimspecialedition' },
+            },
+          ],
+        },
+      },
+    });
+    expect(details).toMatchObject({
+      game: 'skyrimspecialedition',
+      modId: 12604,
+      name: 'SkyUI',
+      version: '6.9',
+      author: 'SkyUI Team',
+      uploader: 'schlangster',
+      downloads: 24620161,
+      endorsements: 494035,
+      adultContent: false,
+    });
+  });
+
+  it('maps DLC, same-game, cross-game, and external requirements', () => {
+    const details = site.parseModDetails({
+      data: {
+        mods: {
+          nodes: [
+            {
+              modId: 129414,
+              name: 'Patch',
+              game: { domainName: 'skyrimspecialedition' },
+              gameId: 1704,
+              modRequirements: {
+                dlcRequirements: [{ gameExpansion: { name: 'Dawnguard' }, notes: 'vampires' }],
+                nexusRequirements: {
+                  nodes: [
+                    {
+                      modName: 'Knotwork',
+                      notes: 'assets',
+                      url: '',
+                      modId: '128235',
+                      gameId: '1704',
+                      externalRequirement: false,
+                    },
+                    {
+                      modName: 'Other Game Mod',
+                      notes: '',
+                      url: '',
+                      modId: '55',
+                      gameId: '999',
+                      externalRequirement: false,
+                    },
+                    {
+                      modName: 'SKSE',
+                      notes: '',
+                      url: 'https://skse.silverlock.org',
+                      modId: '0',
+                      gameId: '1704',
+                      externalRequirement: true,
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(details?.requirements).toEqual([
+      { name: 'Dawnguard', dlc: true, notes: 'vampires' },
+      { name: 'Knotwork', notes: 'assets', game: 'skyrimspecialedition', modId: 128235 },
+      { name: 'Other Game Mod' },
+      { name: 'SKSE', url: 'https://skse.silverlock.org' },
+    ]);
+  });
+
+  it('omits absent optional fields', () => {
+    const details = site.parseModDetails({
+      data: {
+        mods: { nodes: [{ modId: 1, name: 'Bare', game: { domainName: 'skyrim' } }] },
+      },
+    });
+    expect(details).toEqual({ game: 'skyrim', modId: 1, name: 'Bare' });
+  });
+
+  it('is null when the mod does not exist', () => {
+    expect(site.parseModDetails({ data: { mods: { nodes: [] } } })).toBeNull();
+  });
+
+  it('throws ScrapeError on an unexpected shape', () => {
+    expect(() => site.parseModDetails({ data: {} })).toThrow(ScrapeError);
   });
 });
 

@@ -18,6 +18,8 @@ export class FakeSession implements BrowserSession {
   closed = false;
   loggedIn = true;
   jsonResponse: unknown = null;
+  /** When non-empty, postJson shifts responses from here instead. */
+  jsonResponses: unknown[] = [];
 
   constructor(
     private readonly pages: Map<string, string> = new Map(),
@@ -47,7 +49,7 @@ export class FakeSession implements BrowserSession {
     return this.pages.get(last) ?? '';
   }
   async postJson(): Promise<unknown> {
-    return this.jsonResponse;
+    return this.jsonResponses.length > 0 ? this.jsonResponses.shift() : this.jsonResponse;
   }
   async resolveUsername(): Promise<string | null> {
     return this.username;

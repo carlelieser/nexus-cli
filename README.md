@@ -48,6 +48,20 @@ Alternatively, if you're already logged in to [Nexus](https://users.nexusmods.co
 nexus import --from chrome
 ```
 
+Search for mods — each result prints a URL you can feed straight into `nexus download`:
+
+```sh
+nexus search skyui --game skyrimspecialedition
+```
+
+Show a mod's details:
+
+```sh
+nexus get https://www.nexusmods.com/skyrimspecialedition/mods/12604
+# or
+nexus get --game skyrimspecialedition --mod 12604
+```
+
 Download an individual mod:
 
 ```sh

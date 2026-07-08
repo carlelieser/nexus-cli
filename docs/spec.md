@@ -18,7 +18,7 @@ A CLI for downloading mods and collections from [Nexus Mods](https://www.nexusmo
 **Non-goals (this version)**
 
 - No mod installation, extraction, load-order resolution, or dependency management. Output is **raw archive files only**.
-- No Nexus official API integration.
+- No premium REST API integration (works with free accounts by driving the website and its public GraphQL API).
 - No GUI. CLI only.
 - No multi-account management beyond a single active session.
 - No in-CLI interactive login (superseded by cookie import — see §1 intro).
@@ -65,6 +65,33 @@ Downloads a single mod or an entire collection.
   - With `--mod`: scrapes the mod's files page and downloads its main file(s).
   - With `--collection`: fetches the collection's pinned files from the Nexus GraphQL API and downloads each one **by its exact `fileId`** (a collection curates specific files/versions, not just mods). Optional files are skipped unless `--optional` is given. Each file is fetched via the same manual/slow-download flow as `--mod`.
 - **Exit codes**: `0` all requested files downloaded, `1` one or more failed (summary printed), `2` invalid/missing/expired session.
+
+### `nexus search`
+
+Searches Nexus for mods by name via the GraphQL API (operation `ModsSearch`), most-endorsed first, and prints one line per match — name, `<game>/<modId>`, and the mod page URL — ready to feed into `nexus download`.
+
+- **Parameters / flags**
+  - `<term>` — search term, matched against mod names (wildcard). **Required positional.**
+  - `--game <domain>` — restrict results to one Nexus game domain.
+  - `--limit <n>` — maximum results to print (default `10`).
+  - `--json` — print `{ totalCount, results: [{ game, modId, name, url }] }` as JSON instead of lines.
+  - `--headful` — show the browser window (off by default; useful for debugging).
+- **Behavior**
+  - Restores the saved session exactly like `download` (Camoufox launch, cookie seed, Cloudflare warm-up), then executes the search query in-page and prints the parsed results. Zero matches is a valid outcome, not an error.
+- **Exit codes**: `0` results printed (including zero matches), `1` error, `2` invalid/missing/expired session, `130` cancelled.
+
+### `nexus get`
+
+Shows one mod's details (name, version, author/uploader, downloads, endorsements, last update, summary, requirements — DLC, Nexus mods, and external tools) via the GraphQL API. Two round-trips: the mods filter only accepts a numeric game id (operation `GameId`), then the details fetch (operation `ModDetails`).
+
+- **Parameters / flags**
+  - `[target]` — a nexusmods.com mod URL, resolved into the flags below. Collection URLs are rejected.
+  - `--game <domain>` + `--mod <id>` — explicit alternative to the URL positional.
+  - `--json` — print the full details object (plus `url`) as JSON.
+  - `--headful` — show the browser window (off by default; useful for debugging).
+- **Behavior**
+  - Restores the saved session exactly like `download`/`search`, then fetches and prints. A nonexistent mod prints a warning and exits `1`; an unknown game domain is an error.
+- **Exit codes**: `0` details printed, `1` mod not found / error, `2` invalid/missing/expired session, `130` cancelled.
 
 ---
 

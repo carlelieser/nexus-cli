@@ -35,4 +35,55 @@ describe('live smoke', () => {
     },
     120_000,
   );
+
+  it.skipIf(!live)(
+    'searches mods via the GraphQL API',
+    async () => {
+      const deps = {
+        browser: new CamoufoxBrowser(),
+        store: new FileSessionStore(),
+        site: new NexusWebAdapter(),
+      };
+      const session = await restoreSession(deps, false);
+      try {
+        // SkyUI again — catches GraphQL schema drift in the search operation.
+        const req = deps.site.modSearchQuery('SkyUI', {
+          game: 'skyrimspecialedition',
+          limit: 5,
+        });
+        const json = await session.postJson(req.url, req.body, req.headers);
+        const search = deps.site.parseModSearch(json);
+        expect(search.results.some((r) => r.modId === 12604)).toBe(true);
+      } finally {
+        await session.close();
+      }
+    },
+    120_000,
+  );
+
+  it.skipIf(!live)(
+    'fetches mod details via the GraphQL API',
+    async () => {
+      const deps = {
+        browser: new CamoufoxBrowser(),
+        store: new FileSessionStore(),
+        site: new NexusWebAdapter(),
+      };
+      const session = await restoreSession(deps, false);
+      try {
+        const gameReq = deps.site.gameIdQuery('skyrimspecialedition');
+        const gameId = deps.site.parseGameId(
+          await session.postJson(gameReq.url, gameReq.body, gameReq.headers),
+        );
+        const req = deps.site.modDetailsQuery(gameId, 12604);
+        const details = deps.site.parseModDetails(
+          await session.postJson(req.url, req.body, req.headers),
+        );
+        expect(details?.name).toBe('SkyUI');
+      } finally {
+        await session.close();
+      }
+    },
+    120_000,
+  );
 });
