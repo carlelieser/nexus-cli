@@ -28,7 +28,8 @@
   "main": "./dist/cli/index.js",
   "files": [
     "dist",
-    "electron"
+    "electron",
+    "scripts"
   ],
   "publishConfig": {
     "access": "public"
