@@ -10,6 +10,7 @@ import type { Cookie } from '@core/types.js';
 import type { Browser, BrowserSession, LaunchOptions, ResolvedDownload } from './Browser.js';
 
 const MAIN_HOST = 'www.nexusmods.com';
+const HOME_URL = `https://${MAIN_HOST}/`;
 const ACCOUNT_URL = `https://${MAIN_HOST}/users/myaccount`;
 const SIGN_IN_HOST = 'users.nexusmods.com';
 const NEXUS_DOMAIN = '.nexusmods.com';
@@ -39,6 +40,11 @@ function isChallenge(response: NavResponse): boolean {
 /** Whether an error is Playwright's "execution context destroyed" mid-navigation. */
 function isContextDestroyed(e: unknown): boolean {
   return e instanceof Error && /execution context was destroyed/i.test(e.message);
+}
+
+/** Whether an error is Firefox's transient in-page fetch failure. */
+function isFetchNetworkError(e: unknown): boolean {
+  return e instanceof Error && /NetworkError when attempting to fetch/i.test(e.message);
 }
 
 /** Camoufox-backed implementation of the Browser interface. */
@@ -138,8 +144,12 @@ class CamoufoxSession implements BrowserSession {
     body: unknown,
     headers: Record<string, string> = {},
   ): Promise<unknown> {
-    if (new URL(this.page.url()).host !== MAIN_HOST) {
-      await this.navigate(`https://${MAIN_HOST}/`).catch(() => undefined);
+    // The fetch runs in the page and is aborted (NetworkError) if the page
+    // navigates mid-flight — which the account page restoreSession lands on
+    // does shortly after load (post-login session-refresh redirects). The
+    // homepage is navigation-quiet, so hop there before calling the API.
+    if (this.page.url() !== HOME_URL) {
+      await this.navigate(HOME_URL).catch(() => undefined);
     }
 
     for (let attempt = 0; ; attempt++) {
@@ -161,7 +171,11 @@ class CamoufoxSession implements BrowserSession {
           { url, body, headers },
         );
       } catch (e) {
-        if (attempt >= 2 || !isContextDestroyed(e)) throw e;
+        if (attempt >= 2 || !(isContextDestroyed(e) || isFetchNetworkError(e))) throw e;
+        // A NetworkError right after the Cloudflare warm-up is transient and
+        // clears on a short-delay retry; a destroyed context just needs the
+        // pending navigation to settle (the waitForLoadState above).
+        if (isFetchNetworkError(e)) await this.page.waitForTimeout(1_000);
       }
     }
   }
