@@ -52,6 +52,13 @@ export interface NexusSite {
   /** Parse the mod-details response. Null when the mod does not exist. */
   parseModDetails(json: unknown): ModDetails | null;
 
+  /**
+   * Parse a mod's details straight from its page HTML — the fallback for mods
+   * the `ModDetails` GraphQL query fails to find (seen for some older mods).
+   * Null when the page isn't a mod page (e.g. a 404 or sign-in bounce).
+   */
+  parseModDetailsPage(html: string, game: GameDomain, modId: number): ModDetails | null;
+
   /** Build the manual-download URL for a specific file of a mod. */
   fileDownloadUrl(game: GameDomain, modId: number, fileId: number): string;
 

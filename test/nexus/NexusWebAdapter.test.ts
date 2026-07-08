@@ -326,6 +326,84 @@ describe('modDetailsQuery / parseModDetails', () => {
   });
 });
 
+describe('parseModDetailsPage', () => {
+  const PAGE = `
+    <meta property="og:title" content="TrueHUD Curated Bosses">
+    <meta property="og:description" content="Stricter boss bar selection.">
+    <meta property="og:image" content="https://staticdelivery.nexusmods.com/thumb.png">
+    <ul class="stats clearfix">
+      <li class="stat-endorsements">
+        <div class="statitem">
+          <div class="titlestat">Endorsements</div>
+          <div class="stat"><a>4,501</a></div>
+        </div>
+      </li>
+      <li class="stat-version">
+        <div class="statitem">
+          <div class="titlestat">Version</div>
+          <div class="stat">1.2</div>
+        </div>
+      </li>
+    </ul>
+    <div class="sideitem timestamp">
+      <h3>Last updated</h3>
+      <time class="dst-date-adjust" data-date="1668354774">13 November 2022</time>
+    </div>
+    <div class="sideitem timestamp">
+      <h3>Original upload</h3>
+      <time class="dst-date-adjust" data-date="1628314498">07 August 2021</time>
+    </div>
+    <div class="sideitem">
+      <h3>Created by</h3>
+      Catir
+    </div>
+    <div class="sideitem">
+      <h3>Uploaded by</h3>
+      <a href="https://www.nexusmods.com/skyrimspecialedition/users/1">Catir</a>
+    </div>
+    <mod-download-modal requirements="[{&quot;type&quot;:&quot;dlc&quot;,&quot;name&quot;:&quot;Creation Club Content&quot;},{&quot;type&quot;:&quot;mod&quot;,&quot;name&quot;:&quot;TrueHUD - HUD Additions&quot;,&quot;url&quot;:&quot;https:\\/\\/www.nexusmods.com\\/skyrimspecialedition\\/mods\\/62775&quot;}]"></mod-download-modal>
+  `;
+
+  it('scrapes name, summary, version, dates, credits, and requirements', () => {
+    const details = site.parseModDetailsPage(PAGE, 'skyrimspecialedition', 53406);
+    expect(details).toMatchObject({
+      game: 'skyrimspecialedition',
+      modId: 53406,
+      name: 'TrueHUD Curated Bosses',
+      summary: 'Stricter boss bar selection.',
+      version: '1.2',
+      author: 'Catir',
+      uploader: 'Catir',
+      endorsements: 4501,
+      createdAt: new Date(1628314498 * 1000).toISOString(),
+      updatedAt: new Date(1668354774 * 1000).toISOString(),
+      pictureUrl: 'https://staticdelivery.nexusmods.com/thumb.png',
+    });
+    expect(details?.requirements).toEqual([
+      { name: 'Creation Club Content', dlc: true },
+      {
+        name: 'TrueHUD - HUD Additions',
+        game: 'skyrimspecialedition',
+        modId: 62775,
+        url: 'https://www.nexusmods.com/skyrimspecialedition/mods/62775',
+      },
+    ]);
+  });
+
+  it('is null when the page has no og:title (not a mod page)', () => {
+    expect(site.parseModDetailsPage('<html></html>', 'skyrimspecialedition', 1)).toBeNull();
+  });
+
+  it('omits requirements when the download-modal tag is absent', () => {
+    const details = site.parseModDetailsPage(
+      '<meta property="og:title" content="Bare Mod">',
+      'skyrim',
+      1,
+    );
+    expect(details).toEqual({ game: 'skyrim', modId: 1, name: 'Bare Mod' });
+  });
+});
+
 describe('parseDownloadTargets', () => {
   const html = fixture('mod-files.html');
 

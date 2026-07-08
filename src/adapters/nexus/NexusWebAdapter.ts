@@ -10,10 +10,20 @@ import type {
   ModSearchResult,
 } from '@core/types.js';
 import type { JsonRequest, NexusSite } from './NexusSite.js';
+import { parseNexusUrl } from './parseNexusUrl.js';
 
 const BASE = 'https://www.nexusmods.com';
 const GRAPHQL_URL = 'https://api-router.nexusmods.com/graphql';
 const SIGN_IN_HOST = 'users.nexusmods.com';
+
+/**
+ * Nexus's `nexusRequirements` field hard-caps at this many nodes server-side
+ * regardless of the requested `count` (confirmed: requesting 500 on a
+ * 94-requirement mod still returned exactly 80). A mod's `requirements`
+ * hitting exactly this length is the app layer's signal to treat the
+ * GraphQL list as truncated and re-fetch the full list from the mod's page.
+ */
+export const MOD_REQUIREMENTS_CAP = 80;
 
 const COLLECTION_QUERY = `
   query CollectionRevisionMods($slug: String!, $viewAdultContent: Boolean = true) {
@@ -77,7 +87,7 @@ const MOD_DETAILS_QUERY = `
         gameId
         modRequirements {
           dlcRequirements { gameExpansion { name } notes }
-          nexusRequirements(count: 50) {
+          nexusRequirements(count: ${MOD_REQUIREMENTS_CAP}) {
             nodes { modName notes url modId gameId externalRequirement }
           }
         }
@@ -256,6 +266,41 @@ export class NexusWebAdapter implements NexusSite {
     };
   }
 
+  parseModDetailsPage(html: string, game: GameDomain, modId: number): ModDetails | null {
+    const name = /<meta property="og:title" content="([^"]*)"/i.exec(html)?.[1];
+    if (!name) return null;
+
+    const summary = /<meta property="og:description" content="([^"]*)"/i.exec(html)?.[1];
+    const pictureUrl = /<meta property="og:image" content="([^"]*)"/i.exec(html)?.[1];
+    const version = /<div class="titlestat">Version<\/div>\s*<div class="stat">([^<]*)</i.exec(
+      html,
+    )?.[1];
+    const endorsements = /<div class="titlestat">Endorsements<\/div>[\s\S]*?>([\d,]+)</i
+      .exec(html)?.[1]
+      ?.replace(/,/g, '');
+    const author = /<h3>Created by<\/h3>\s*([^<]+?)\s*</i.exec(html)?.[1];
+    const uploader = /<h3>Uploaded by<\/h3>\s*<a[^>]*>([^<]*)</i.exec(html)?.[1];
+    const updatedAt = dateFromMarker(html, 'Last updated');
+    const createdAt = dateFromMarker(html, 'Original upload');
+
+    return {
+      game,
+      modId,
+      name: decodeHtmlEntities(name),
+      ...(summary ? { summary: decodeHtmlEntities(summary) } : {}),
+      ...(version ? { version: version.trim() } : {}),
+      ...(author ? { author: decodeHtmlEntities(author) } : {}),
+      ...(uploader ? { uploader: decodeHtmlEntities(uploader) } : {}),
+      ...(createdAt ? { createdAt } : {}),
+      ...(updatedAt ? { updatedAt } : {}),
+      ...(endorsements ? { endorsements: Number(endorsements) } : {}),
+      ...(pictureUrl ? { pictureUrl } : {}),
+      ...(requirementsFromPage(html).length > 0
+        ? { requirements: requirementsFromPage(html) }
+        : {}),
+    };
+  }
+
   fileDownloadUrl(game: GameDomain, modId: number, fileId: number): string {
     return `${BASE}/${game}/mods/${modId}?tab=files&file_id=${fileId}`;
   }
@@ -415,6 +460,70 @@ function requirementsOf(node: GqlModDetailsNode): ModRequirement[] {
   }
 
   return requirements;
+}
+
+/**
+ * Read the `requirements` JSON off the page's `<mod-download-modal>` tag —
+ * `[{"type":"dlc","name":...} | {"type":"mod","name":...,"url":...}]`. The
+ * one structured, HTML-entity-decoded requirements source on the page; the
+ * "Requirements" accordion table renders the same data but as markup that
+ * varies by mod-page generation, so this is preferred whenever present.
+ */
+function requirementsFromPage(html: string): ModRequirement[] {
+  const attr = /<mod-download-modal[^>]*\brequirements="([^"]*)"/i.exec(html)?.[1];
+  if (!attr) return [];
+
+  let entries: unknown;
+  try {
+    entries = JSON.parse(decodeHtmlEntities(attr));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(entries)) return [];
+
+  const requirements: ModRequirement[] = [];
+  for (const entry of entries as {
+    type?: string;
+    name?: string;
+    url?: string;
+    notes?: string;
+  }[]) {
+    if (!entry.name) continue;
+    if (entry.type === 'dlc') {
+      requirements.push({
+        name: entry.name,
+        dlc: true,
+        ...(entry.notes ? { notes: entry.notes } : {}),
+      });
+      continue;
+    }
+    const ref = entry.url ? parseNexusUrl(entry.url) : null;
+    requirements.push({
+      name: entry.name,
+      ...(entry.notes ? { notes: entry.notes } : {}),
+      ...(ref && 'modId' in ref ? { game: ref.game, modId: ref.modId } : {}),
+      ...(entry.url ? { url: entry.url } : {}),
+    });
+  }
+  return requirements;
+}
+
+/** Read a `dst-date-adjust` timestamp following an `<h3>label</h3>` marker. */
+function dateFromMarker(html: string, label: string): string | undefined {
+  const re = new RegExp(`<h3>${label}</h3>\\s*<time[^>]*data-date="(\\d+)"`, 'i');
+  const unixSeconds = re.exec(html)?.[1];
+  if (!unixSeconds) return undefined;
+  return new Date(Number(unixSeconds) * 1000).toISOString();
+}
+
+/** Decode the small set of HTML entities Nexus uses in attribute values. */
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
 }
 
 interface Segment {
