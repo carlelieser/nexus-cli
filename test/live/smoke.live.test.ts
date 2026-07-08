@@ -86,4 +86,42 @@ describe('live smoke', () => {
     },
     120_000,
   );
+
+  it.skipIf(!live)(
+    "pages a mod's requirements and dependents via the GraphQL API",
+    async () => {
+      const deps = {
+        browser: new CamoufoxBrowser(),
+        store: new FileSessionStore(),
+        site: new NexusWebAdapter(),
+      };
+      const session = await restoreSession(deps, false);
+      try {
+        const gameReq = deps.site.gameIdQuery('skyrimspecialedition');
+        const gameId = deps.site.parseGameId(
+          await session.postJson(gameReq.url, gameReq.body, gameReq.headers),
+        );
+
+        const reqQuery = deps.site.modRequirementsQuery(gameId, 12604, { count: 5, offset: 0 });
+        const requirements = deps.site.parseModRequirementsPage(
+          await session.postJson(reqQuery.url, reqQuery.body, reqQuery.headers),
+          gameId,
+          'skyrimspecialedition',
+        );
+        expect(requirements.totalCount).toBeGreaterThan(0);
+
+        const depQuery = deps.site.modDependentsQuery(gameId, 12604, { count: 5, offset: 0 });
+        const dependents = deps.site.parseModDependentsPage(
+          await session.postJson(depQuery.url, depQuery.body, depQuery.headers),
+          gameId,
+          'skyrimspecialedition',
+        );
+        // SkyUI (12604) is a hard dependency for thousands of mods.
+        expect(dependents.totalCount).toBeGreaterThan(1000);
+      } finally {
+        await session.close();
+      }
+    },
+    120_000,
+  );
 });

@@ -81,6 +81,40 @@ export interface ModRequirement {
   dlc?: boolean;
 }
 
+/** A mod that lists the queried mod as one of its own requirements. */
+export interface ModDependent {
+  name: string;
+  notes?: string;
+  /** Set when the dependent is a Nexus mod in the same game. */
+  game?: GameDomain;
+  modId?: number;
+  /** Link for external (off-Nexus) dependents, when given. */
+  url?: string;
+}
+
+/** One page of a server-paginated list, plus the true total across all pages. */
+export interface Page<T> {
+  items: T[];
+  totalCount: number;
+}
+
+/** A mod that lists the queried mod as one of its own requirements. */
+export interface ModDependent {
+  name: string;
+  notes?: string;
+  /** Set when the dependent is a Nexus mod in the same game. */
+  game?: GameDomain;
+  modId?: number;
+  /** Link for external (off-Nexus) dependents, when given. */
+  url?: string;
+}
+
+/** One page of a server-paginated list, plus the true total across all pages. */
+export interface Page<T> {
+  items: T[];
+  totalCount: number;
+}
+
 /** Full details for one mod, as reported by the Nexus API. */
 export interface ModDetails {
   game: GameDomain;

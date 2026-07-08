@@ -326,6 +326,152 @@ describe('modDetailsQuery / parseModDetails', () => {
   });
 });
 
+describe('modRequirementsQuery / parseModRequirementsPage', () => {
+  it('builds a GraphQL request with count and offset', () => {
+    const req = site.modRequirementsQuery(1704, 12604, { count: 10, offset: 20 });
+    expect(req.url).toContain('graphql');
+    expect(req.headers?.['x-graphql-operationname']).toBe('ModRequirements');
+    const body = req.body as {
+      variables: {
+        filter: { gameId: { value: string }; modId: { value: string } };
+        count: number;
+        offset: number;
+      };
+    };
+    expect(body.variables.filter.gameId.value).toBe('1704');
+    expect(body.variables.filter.modId.value).toBe('12604');
+    expect(body.variables.count).toBe(10);
+    expect(body.variables.offset).toBe(20);
+  });
+
+  it('maps a page of requirements, with the true total', () => {
+    const page = site.parseModRequirementsPage(
+      {
+        data: {
+          mods: {
+            nodes: [
+              {
+                modRequirements: {
+                  nexusRequirements: {
+                    totalCount: 94,
+                    nodes: [
+                      {
+                        modName: 'Skyrim Script Extender (SKSE64)',
+                        notes: '',
+                        url: '',
+                        modId: '30379',
+                        gameId: '1704',
+                        externalRequirement: false,
+                      },
+                      {
+                        modName: 'SKSE',
+                        notes: '',
+                        url: 'https://skse.silverlock.org',
+                        modId: '0',
+                        gameId: '1704',
+                        externalRequirement: true,
+                      },
+                      {
+                        modName: 'Cross Game Mod',
+                        notes: null,
+                        url: '',
+                        modId: '55',
+                        gameId: '999',
+                        externalRequirement: false,
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      1704,
+      'skyrimspecialedition',
+    );
+
+    expect(page.totalCount).toBe(94);
+    expect(page.items).toEqual([
+      {
+        name: 'Skyrim Script Extender (SKSE64)',
+        game: 'skyrimspecialedition',
+        modId: 30379,
+      },
+      { name: 'SKSE', url: 'https://skse.silverlock.org' },
+      { name: 'Cross Game Mod' },
+    ]);
+  });
+
+  it('throws ScrapeError on an unexpected shape', () => {
+    expect(() => site.parseModRequirementsPage({ data: {} }, 1704, 'skyrimspecialedition')).toThrow(
+      ScrapeError,
+    );
+  });
+});
+
+describe('modDependentsQuery / parseModDependentsPage', () => {
+  it('builds a GraphQL request with count and offset', () => {
+    const req = site.modDependentsQuery(1704, 12604, { count: 5, offset: 15 });
+    expect(req.url).toContain('graphql');
+    expect(req.headers?.['x-graphql-operationname']).toBe('ModDependents');
+    const body = req.body as {
+      variables: {
+        filter: { gameId: { value: string }; modId: { value: string } };
+        count: number;
+        offset: number;
+      };
+    };
+    expect(body.variables.filter.gameId.value).toBe('1704');
+    expect(body.variables.filter.modId.value).toBe('12604');
+    expect(body.variables.count).toBe(5);
+    expect(body.variables.offset).toBe(15);
+  });
+
+  it('maps a page of dependents, with the true total', () => {
+    const page = site.parseModDependentsPage(
+      {
+        data: {
+          mods: {
+            nodes: [
+              {
+                modRequirements: {
+                  modsRequiringThisMod: {
+                    totalCount: 2206,
+                    nodes: [
+                      {
+                        modName: 'Chinese Translation for SkyUI',
+                        notes: null,
+                        url: '',
+                        modId: '1342',
+                        gameId: '1704',
+                        externalRequirement: false,
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      1704,
+      'skyrimspecialedition',
+    );
+
+    expect(page.totalCount).toBe(2206);
+    expect(page.items).toEqual([
+      { name: 'Chinese Translation for SkyUI', game: 'skyrimspecialedition', modId: 1342 },
+    ]);
+  });
+
+  it('throws ScrapeError on an unexpected shape', () => {
+    expect(() => site.parseModDependentsPage({ data: {} }, 1704, 'skyrimspecialedition')).toThrow(
+      ScrapeError,
+    );
+  });
+});
+
 describe('parseModDetailsPage', () => {
   const PAGE = `
     <meta property="og:title" content="TrueHUD Curated Bosses">

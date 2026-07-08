@@ -4,10 +4,12 @@ import type {
   DownloadTarget,
   FileCategory,
   GameDomain,
+  ModDependent,
   ModDetails,
   ModRequirement,
   ModSearch,
   ModSearchResult,
+  Page,
 } from '@core/types.js';
 import type { JsonRequest, NexusSite } from './NexusSite.js';
 import { parseNexusUrl } from './parseNexusUrl.js';
@@ -63,6 +65,36 @@ const MOD_SEARCH_QUERY = `
 const GAME_ID_QUERY = `
   query GameId($domain: String!) {
     game(domainName: $domain) { id }
+  }`;
+
+const REQUIREMENT_NODE_FIELDS = `modName notes url modId gameId externalRequirement`;
+
+const MOD_REQUIREMENTS_QUERY = `
+  query ModRequirements($filter: ModsFilter, $count: Int, $offset: Int) {
+    mods(filter: $filter, count: 1) {
+      nodes {
+        modRequirements {
+          nexusRequirements(count: $count, offset: $offset) {
+            totalCount
+            nodes { ${REQUIREMENT_NODE_FIELDS} }
+          }
+        }
+      }
+    }
+  }`;
+
+const MOD_DEPENDENTS_QUERY = `
+  query ModDependents($filter: ModsFilter, $count: Int, $offset: Int) {
+    mods(filter: $filter, count: 1) {
+      nodes {
+        modRequirements {
+          modsRequiringThisMod(count: $count, offset: $offset) {
+            totalCount
+            nodes { ${REQUIREMENT_NODE_FIELDS} }
+          }
+        }
+      }
+    }
   }`;
 
 // The mods filter only accepts a numeric gameId alongside modId (filtering by
@@ -352,6 +384,74 @@ export class NexusWebAdapter implements NexusSite {
       return false;
     }
   }
+
+  modRequirementsQuery(
+    gameId: number,
+    modId: number,
+    opts: { count: number; offset: number },
+  ): JsonRequest {
+    return {
+      url: GRAPHQL_URL,
+      body: {
+        operationName: 'ModRequirements',
+        query: MOD_REQUIREMENTS_QUERY,
+        variables: { filter: modFilter(gameId, modId), count: opts.count, offset: opts.offset },
+      },
+      headers: { 'x-graphql-operationname': 'ModRequirements' },
+    };
+  }
+
+  parseModRequirementsPage(json: unknown, gameId: number, game: GameDomain): Page<ModRequirement> {
+    const page = (json as GqlRequirementsPageResponse)?.data?.mods?.nodes?.[0]?.modRequirements
+      ?.nexusRequirements;
+    if (!page || !Array.isArray(page.nodes) || typeof page.totalCount !== 'number') {
+      throw new ScrapeError('unexpected requirements response shape');
+    }
+    return {
+      items: page.nodes
+        .filter((n) => n.modName)
+        .map((n) => requirementNodeToRequirement(n, gameId, game)),
+      totalCount: page.totalCount,
+    };
+  }
+
+  modDependentsQuery(
+    gameId: number,
+    modId: number,
+    opts: { count: number; offset: number },
+  ): JsonRequest {
+    return {
+      url: GRAPHQL_URL,
+      body: {
+        operationName: 'ModDependents',
+        query: MOD_DEPENDENTS_QUERY,
+        variables: { filter: modFilter(gameId, modId), count: opts.count, offset: opts.offset },
+      },
+      headers: { 'x-graphql-operationname': 'ModDependents' },
+    };
+  }
+
+  parseModDependentsPage(json: unknown, gameId: number, game: GameDomain): Page<ModDependent> {
+    const page = (json as GqlDependentsPageResponse)?.data?.mods?.nodes?.[0]?.modRequirements
+      ?.modsRequiringThisMod;
+    if (!page || !Array.isArray(page.nodes) || typeof page.totalCount !== 'number') {
+      throw new ScrapeError('unexpected dependents response shape');
+    }
+    return {
+      items: page.nodes
+        .filter((n) => n.modName)
+        .map((n) => requirementNodeToDependent(n, gameId, game)),
+      totalCount: page.totalCount,
+    };
+  }
+}
+
+/** The `gameId` + `modId` equality filter shared by all single-mod lookups. */
+function modFilter(gameId: number, modId: number): unknown {
+  return {
+    gameId: { value: String(gameId), op: 'EQUALS' },
+    modId: { value: String(modId), op: 'EQUALS' },
+  };
 }
 
 interface GqlResponse {
@@ -428,6 +528,40 @@ interface GqlModDetailsResponse {
   data?: { mods?: { nodes?: GqlModDetailsNode[] } };
 }
 
+/** A single node shape shared by `nexusRequirements` and `modsRequiringThisMod`. */
+interface GqlRequirementNode {
+  modName?: string;
+  notes?: string | null;
+  url?: string;
+  modId?: string;
+  gameId?: string;
+  externalRequirement?: boolean;
+}
+
+interface GqlRequirementsPageResponse {
+  data?: {
+    mods?: {
+      nodes?: {
+        modRequirements?: {
+          nexusRequirements?: { totalCount?: number; nodes?: GqlRequirementNode[] };
+        } | null;
+      }[];
+    };
+  };
+}
+
+interface GqlDependentsPageResponse {
+  data?: {
+    mods?: {
+      nodes?: {
+        modRequirements?: {
+          modsRequiringThisMod?: { totalCount?: number; nodes?: GqlRequirementNode[] };
+        } | null;
+      }[];
+    };
+  };
+}
+
 /**
  * Flatten a mod's requirements: DLC first, then Nexus/external mods. A
  * same-game mod requirement gets a `game`/`modId` ref (the API only reports
@@ -460,6 +594,41 @@ function requirementsOf(node: GqlModDetailsNode): ModRequirement[] {
   }
 
   return requirements;
+}
+
+/**
+ * Map one `nexusRequirements`/`modsRequiringThisMod` node, given the queried
+ * mod's own `gameId`/`game` (the API reports numeric game ids per node, so a
+ * same-game ref needs the queried mod's domain to resolve to a `game` slug).
+ */
+function requirementNodeToRequirement(
+  node: GqlRequirementNode,
+  gameId: number,
+  game: GameDomain,
+): ModRequirement {
+  const modId = Number(node.modId);
+  const sameGame = !node.externalRequirement && Number(node.gameId) === gameId;
+  return {
+    name: node.modName!,
+    ...(node.notes ? { notes: node.notes } : {}),
+    ...(sameGame && Number.isFinite(modId) && modId > 0 ? { game, modId } : {}),
+    ...(node.url ? { url: node.url } : {}),
+  };
+}
+
+function requirementNodeToDependent(
+  node: GqlRequirementNode,
+  gameId: number,
+  game: GameDomain,
+): ModDependent {
+  const modId = Number(node.modId);
+  const sameGame = !node.externalRequirement && Number(node.gameId) === gameId;
+  return {
+    name: node.modName!,
+    ...(node.notes ? { notes: node.notes } : {}),
+    ...(sameGame && Number.isFinite(modId) && modId > 0 ? { game, modId } : {}),
+    ...(node.url ? { url: node.url } : {}),
+  };
 }
 
 /**

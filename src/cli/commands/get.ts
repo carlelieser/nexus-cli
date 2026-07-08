@@ -1,10 +1,10 @@
 import ora from 'ora';
 import type { ArgumentsCamelCase, Argv, CommandModule } from 'yargs';
 
-import { getMod } from '@app/getMod.js';
+import { getMod, getModDependents, getModRequirements } from '@app/getMod.js';
 import { restoreSession } from '@app/restoreSession.js';
 import { AuthError, isCancel } from '@core/errors.js';
-import type { ModDetails } from '@core/types.js';
+import type { ModDependent, ModDetails, ModRequirement, Page } from '@core/types.js';
 import { parseNexusUrl } from '@adapters/nexus/parseNexusUrl.js';
 import { out } from '../output.js';
 import { buildDeps } from '../wiring.js';
@@ -13,6 +13,10 @@ interface GetArgs {
   target?: string;
   game: string;
   mod: number;
+  requirements: boolean;
+  dependents: boolean;
+  page: number;
+  limit: number;
   json: boolean;
   headful: boolean;
   verbose: boolean;
@@ -32,6 +36,26 @@ export const getCommand: CommandModule = {
         describe: 'Nexus game domain (e.g. skyrimspecialedition)',
       })
       .option('mod', { type: 'number', describe: 'Numeric mod id' })
+      .option('requirements', {
+        type: 'boolean',
+        default: false,
+        describe: "List the mod's own requirements (paginated) instead of its details",
+      })
+      .option('dependents', {
+        type: 'boolean',
+        default: false,
+        describe: 'List mods that depend on this mod (paginated) instead of its details',
+      })
+      .option('page', {
+        type: 'number',
+        default: 1,
+        describe: 'Page number for --requirements/--dependents (1-indexed)',
+      })
+      .option('limit', {
+        type: 'number',
+        default: 10,
+        describe: 'Results per page for --requirements/--dependents',
+      })
       .option('json', {
         type: 'boolean',
         default: false,
@@ -55,6 +79,15 @@ export const getCommand: CommandModule = {
         }
         if (argv.game === undefined || argv.mod === undefined) {
           throw new Error('provide a Nexus mod URL, or --game with --mod');
+        }
+        if (argv.requirements && argv.dependents) {
+          throw new Error('use only one of --requirements or --dependents at a time');
+        }
+        if (argv.page < 1) {
+          throw new Error('--page must be 1 or greater');
+        }
+        if (argv.limit < 1) {
+          throw new Error('--limit must be 1 or greater');
         }
         return true;
       }),
@@ -91,21 +124,35 @@ export const getCommand: CommandModule = {
     }
 
     try {
-      spinner.text = 'Fetching mod details…';
-      const details = await getMod(deps, session, { game: argv.game, modId: argv.mod });
-      spinner.stop();
-
-      if (details === null) {
-        out.warn(`no mod ${argv.mod} in ${argv.game}`);
-        process.exitCode = 1;
-      } else if (argv.json) {
-        out.info(
-          JSON.stringify({ ...details, url: deps.site.modUrl(details.game, details.modId) }),
-        );
+      if (argv.requirements || argv.dependents) {
+        const kind = argv.requirements ? 'requirements' : 'dependents';
+        spinner.text = `Fetching ${kind}…`;
+        const offset = (argv.page - 1) * argv.limit;
+        const pageParams = { game: argv.game, modId: argv.mod, count: argv.limit, offset };
+        const page =
+          kind === 'requirements'
+            ? await getModRequirements(deps, session, pageParams)
+            : await getModDependents(deps, session, pageParams);
+        spinner.stop();
+        printPage(kind, page, argv.page, argv.limit, argv.json);
         process.exitCode = 0;
       } else {
-        print(details, deps.site.modUrl(details.game, details.modId));
-        process.exitCode = 0;
+        spinner.text = 'Fetching mod details…';
+        const details = await getMod(deps, session, { game: argv.game, modId: argv.mod });
+        spinner.stop();
+
+        if (details === null) {
+          out.warn(`no mod ${argv.mod} in ${argv.game}`);
+          process.exitCode = 1;
+        } else if (argv.json) {
+          out.info(
+            JSON.stringify({ ...details, url: deps.site.modUrl(details.game, details.modId) }),
+          );
+          process.exitCode = 0;
+        } else {
+          print(details, deps.site.modUrl(details.game, details.modId));
+          process.exitCode = 0;
+        }
       }
     } catch (e) {
       spinner.stop();
@@ -141,10 +188,49 @@ function print(d: ModDetails, url: string): void {
   if (d.summary) out.info(d.summary);
   if (d.requirements?.length) {
     out.info('requirements:');
-    for (const r of d.requirements) {
-      const ref = r.game && r.modId ? `  ${r.game}/${r.modId}` : r.url ? `  ${r.url}` : '';
-      const notes = r.notes ? ` — ${r.notes}` : '';
-      out.info(`  ${r.name}${r.dlc ? ' (DLC)' : ''}${ref}${notes}`);
-    }
+    for (const r of d.requirements) out.info(`  ${requirementLine(r)}`);
   }
+}
+
+function requirementLine(r: ModRequirement | ModDependent): string {
+  const ref = r.game && r.modId ? `  ${r.game}/${r.modId}` : r.url ? `  ${r.url}` : '';
+  const notes = r.notes ? ` — ${r.notes}` : '';
+  const dlc = 'dlc' in r && r.dlc ? ' (DLC)' : '';
+  return `${r.name}${dlc}${ref}${notes}`;
+}
+
+function printPage(
+  kind: 'requirements' | 'dependents',
+  page: Page<ModRequirement> | Page<ModDependent>,
+  pageNum: number,
+  limit: number,
+  json: boolean,
+): void {
+  const totalPages = Math.max(1, Math.ceil(page.totalCount / limit));
+
+  if (json) {
+    out.info(
+      JSON.stringify({
+        total: page.totalCount,
+        page: pageNum,
+        totalPages,
+        limit,
+        items: page.items,
+      }),
+    );
+    return;
+  }
+
+  if (page.items.length === 0) {
+    out.info(`no ${kind}`);
+    return;
+  }
+
+  out.info(`${kind}:`);
+  for (const item of page.items) out.info(`  ${requirementLine(item)}`);
+
+  const offset = (pageNum - 1) * limit;
+  out.info(
+    `page ${pageNum} of ${totalPages} — showing ${offset + 1}-${offset + page.items.length} of ${page.totalCount}`,
+  );
 }

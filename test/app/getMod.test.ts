@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getMod } from '@app/getMod.js';
+import { getMod, getModDependents, getModRequirements } from '@app/getMod.js';
 import { MOD_REQUIREMENTS_CAP, NexusWebAdapter } from '@adapters/nexus/NexusWebAdapter.js';
 import { ScrapeError } from '@core/errors.js';
 import { FakeSession } from '../fakes.js';
@@ -163,5 +163,122 @@ describe('getMod', () => {
       { name: 'Skyrim Script Extender (SKSE64)', game: 'skyrimspecialedition', modId: 30379 },
     ]);
     expect(session.goneTo).toEqual([]);
+  });
+});
+
+describe('getModRequirements', () => {
+  it('resolves the game id, then returns one page of requirements', async () => {
+    const session = new FakeSession();
+    session.jsonResponses = [
+      { data: { game: { id: 1704 } } },
+      {
+        data: {
+          mods: {
+            nodes: [
+              {
+                modRequirements: {
+                  nexusRequirements: {
+                    totalCount: 94,
+                    nodes: [
+                      {
+                        modName: 'Skyrim Script Extender (SKSE64)',
+                        notes: '',
+                        url: '',
+                        modId: '30379',
+                        gameId: '1704',
+                        externalRequirement: false,
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    const page = await getModRequirements({ site }, session, {
+      game: 'skyrimspecialedition',
+      modId: 129414,
+      count: 1,
+      offset: 20,
+    });
+
+    expect(page).toEqual({
+      totalCount: 94,
+      items: [
+        { name: 'Skyrim Script Extender (SKSE64)', game: 'skyrimspecialedition', modId: 30379 },
+      ],
+    });
+  });
+
+  it('throws ScrapeError for an unknown game domain', async () => {
+    const session = new FakeSession();
+    session.jsonResponses = [{ data: { game: null } }];
+
+    await expect(
+      getModRequirements({ site }, session, {
+        game: 'not-a-game',
+        modId: 1,
+        count: 10,
+        offset: 0,
+      }),
+    ).rejects.toThrow(ScrapeError);
+  });
+});
+
+describe('getModDependents', () => {
+  it('resolves the game id, then returns one page of dependents', async () => {
+    const session = new FakeSession();
+    session.jsonResponses = [
+      { data: { game: { id: 1704 } } },
+      {
+        data: {
+          mods: {
+            nodes: [
+              {
+                modRequirements: {
+                  modsRequiringThisMod: {
+                    totalCount: 2206,
+                    nodes: [
+                      {
+                        modName: 'Chinese Translation for SkyUI',
+                        notes: null,
+                        url: '',
+                        modId: '1342',
+                        gameId: '1704',
+                        externalRequirement: false,
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    const page = await getModDependents({ site }, session, {
+      game: 'skyrimspecialedition',
+      modId: 12604,
+      count: 1,
+      offset: 0,
+    });
+
+    expect(page).toEqual({
+      totalCount: 2206,
+      items: [{ name: 'Chinese Translation for SkyUI', game: 'skyrimspecialedition', modId: 1342 }],
+    });
+  });
+
+  it('throws ScrapeError for an unknown game domain', async () => {
+    const session = new FakeSession();
+    session.jsonResponses = [{ data: { game: null } }];
+
+    await expect(
+      getModDependents({ site }, session, { game: 'not-a-game', modId: 1, count: 10, offset: 0 }),
+    ).rejects.toThrow(ScrapeError);
   });
 });

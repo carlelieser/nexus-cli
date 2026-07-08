@@ -2,8 +2,11 @@ import type {
   CollectionMember,
   DownloadTarget,
   GameDomain,
+  ModDependent,
   ModDetails,
+  ModRequirement,
   ModSearch,
+  Page,
 } from '@core/types.js';
 
 /** A JSON HTTP request the browser session can execute with the session. */
@@ -82,4 +85,33 @@ export interface NexusSite {
    * page markup.
    */
   isAuthRedirect(landedUrl: string): boolean;
+
+  /** Build the GraphQL request for one page of a mod's own requirements. */
+  modRequirementsQuery(
+    gameId: number,
+    modId: number,
+    opts: { count: number; offset: number },
+  ): JsonRequest;
+
+  /**
+   * Parse a page of a mod's requirements, with the true total across all
+   * pages. `gameId`/`game` identify the mod being queried (not returned by
+   * this query) so same-game requirement nodes can be given a `game`/`modId`
+   * ref.
+   */
+  parseModRequirementsPage(json: unknown, gameId: number, game: GameDomain): Page<ModRequirement>;
+
+  /** Build the GraphQL request for one page of mods that depend on a mod. */
+  modDependentsQuery(
+    gameId: number,
+    modId: number,
+    opts: { count: number; offset: number },
+  ): JsonRequest;
+
+  /**
+   * Parse a page of a mod's dependents, with the true total across all pages.
+   * `gameId`/`game` identify the mod being queried, as with
+   * {@link parseModRequirementsPage}.
+   */
+  parseModDependentsPage(json: unknown, gameId: number, game: GameDomain): Page<ModDependent>;
 }
